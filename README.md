@@ -1,6 +1,6 @@
 # RSU Connector
 
-RSU (Remote Service Unit) Connector repository contains the source code for the open source version of a Azure IoT Hub connector to a service unit. The service unit connector is based on a PnP schema (see `src/pnp-schema/RemoteServiceUnit.json`) which defines the capabilities.
+RSU (Remote Service Unit) Connector repository contains the source code for the open source version of a Azure IoT Hub connector to a service unit. The service unit connector is based on a PnP schema (see `pnp-schema/RemoteServiceUnit.json`) which defines the capabilities.
 
 ## Usage
 

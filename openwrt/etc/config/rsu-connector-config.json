@@ -6,5 +6,6 @@
     "DPS_DeviceKeyFile": "/etc/rsu-connector/e2e-test-device.key.pem",
     "jobschedule_tickinternal_ms": 100,
     "message_retry_interval_s": 10,
-    "forward_to_effilink": true
+    "forward_to_effilink": true,
+    "openvpn_log": "/tmp/rsu-connector/openvpn.log"
 }

@@ -2,7 +2,7 @@ set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR x86_64)
 
 set(OPENWRT_PATH /openwrt)
-set(TOOLCHAIN_PATH ${OPENWRT_PATH}/staging_dir/toolchain-x86_64_gcc-8.3.0_musl)
+set(TOOLCHAIN_PATH ${OPENWRT_PATH}/staging_dir/toolchain-x86_64_gcc-8.4.0_musl)
 set(TOOLCHAIN_PREFIX ${TOOLCHAIN_PATH}/bin/${CMAKE_SYSTEM_PROCESSOR}-openwrt-linux-musl)
 set(CMAKE_CXX_COMPILER ${TOOLCHAIN_PREFIX}-g++)
 set(CMAKE_C_COMPILER ${TOOLCHAIN_PREFIX}-gcc)

@@ -25,7 +25,7 @@ struct INetworkDetailSource
         std::string Ipv4Gateway;
         std::string Ipv6Gateway;
         std::string MacAddress;
-        bool IsVpn;
+        bool IsVpn{ false };
     };
 
     virtual bool GetNetworkDetails( std::vector<NetworkDetail>& details ) = 0;

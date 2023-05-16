@@ -16,6 +16,11 @@
 #include <unistd.h>
 #include <poll.h>
 
+#define RAPIDJSON_HAS_STDSTRING 1
+#define RAPIDJSON_HAS_CXX11_RANGE_FOR 1
+#include <rapidjson/rapidjson.h>
+#include <rapidjson/document.h>
+
 extern "C" {
 #include <libubox/blobmsg.h>
 #include <libubus.h>
@@ -33,6 +38,7 @@ struct Ubus::UbusImpl
     std::string Type;
     std::string Serial;
     std::string FirmwareVersion;
+    std::string OpenVpnLogPath;
     bool ReadProperties();
     bool DeleteRedirect( const std::string& name );
     bool ClearRedirect();
@@ -48,9 +54,11 @@ struct Ubus::UbusImpl
     int SocketFD{ -1 };
 };
 
-Ubus::Ubus( const std::string firewallZone ) : _impl( std::make_shared<Ubus::UbusImpl>() )
+Ubus::Ubus( const std::string& firewallZone, const std::string& openVpnLogPath )
+    : _impl( std::make_shared<Ubus::UbusImpl>() )
 {
-    _impl->FirewallZone = firewallZone;
+    _impl->FirewallZone   = firewallZone;
+    _impl->OpenVpnLogPath = openVpnLogPath;
     if ( !_impl->ReadProperties() )
     {
         throw std::runtime_error( "Could not read properties from ubus" );
@@ -394,6 +402,63 @@ static std::string get_mac( const std::string& device )
     return mac;
 }
 
+// Run a command and return its output and its error code.
+static std::pair<std::string, int> runCmdWithOutput( const std::string& command )
+{
+    std::vector<char> buffer( 1024 );
+    std::string output;
+    auto pipe = popen( command.c_str(), "r" );
+    if ( !pipe )
+    {
+        spdlog::error( "Pipe open for command {} failed: {}", command, errno );
+        return std::pair<std::string, int>( output, 0 );
+    }
+    size_t bytesRead{ 0 };
+    while ( ( bytesRead = fread( buffer.data(), 1U, buffer.size(), pipe ) ) > 0 )
+    {
+        output += std::string_view( &buffer[0], bytesRead );
+    }
+    auto error = pclose( pipe );
+    if ( error != 0 )
+    {
+        spdlog::error( "Command {} return error code {}", command, error );
+        output = "";
+    }
+    return std::pair<std::string, int>( output, error );
+}
+
+static bool IsVpnRunning( const std::string& name )
+{
+    auto [currentStatus, error] = runCmdWithOutput( fmt::format( "/etc/init.d/openvpn status {}", name ) );
+    if ( !error && currentStatus.find( "running" ) != std::string::npos )
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+// Reads a openvpn config file and extracts one line via a regex pattern.
+// Returns a smatch instance that includes the captures from the regex.
+static std::smatch ReadConfigFileOption( const std::string& filename, const std::regex& configPattern )
+{
+    std::ifstream configFile( filename.c_str() );
+    std::string line;
+    std::smatch matches;
+    while ( configFile )
+    {
+        std::getline( configFile, line );
+        if ( regex_search( line, matches, configPattern ) )
+        {
+            break;
+        }
+    }
+    configFile.close();
+    return matches;
+}
+
 Command::IVPNActor::ConnectionStatusVPN Ubus::UbusImpl::StartVPN( const std::string& name, std::string& ipAddress )
 {
     std::string filename{ "/etc/openvpn/" };
@@ -407,40 +472,72 @@ Command::IVPNActor::ConnectionStatusVPN Ubus::UbusImpl::StartVPN( const std::str
         return NoConfiguration;
     }
 
-    spdlog::info( "Checking for VPN {} already started.", name );
-    std::vector<Command::INetworkDetailSource::NetworkDetail> details;
-    (void)GetNetworkDetails( details );
-    auto network = std::find_if( details.begin(), details.end(), [name]( auto& element ) {
-        return element.InterfaceName == name;
-    } );
-
-    if ( network != details.end() )
+    std::regex logPattern( "^log +([^ ]+)", std::regex::ECMAScript );
+    auto logMatch = ReadConfigFileOption( filename, logPattern );
+    if ( logMatch.size() != 2 )
     {
-        spdlog::warn( "Configuration already connected: {}", name );
-        ipAddress  = network->Ipv4Address;
-        auto index = ipAddress.find( '/' );
-        if ( index != std::string::npos )
-        {
-            ipAddress = ipAddress.substr( 0, index );
-        }
-        return AlreadyRunning;
-    }
-
-    spdlog::info( "Checking for log file presence." );
-    auto fd = open( "/etc/openvpn/openvpn.log", O_RDONLY );
-    if ( fd < 0 )
-    {
-        spdlog::error( "Could not open /etc/openvpn/openvpn.log" );
+        spdlog::error( "Could not find log file name within {}. Please make sure the configuration contains a 'log "
+                       "<filename>' line with <filename> being unique for this configuration.",
+                       filename );
         return Error;
     }
-    (void)lseek( fd, 0, SEEK_END );
-    auto oldpos = lseek( fd, 0, SEEK_SET );
-    close( fd );
+
+    auto logFilePath = logMatch[1].str();
+
+    spdlog::info( "Checking for VPN {} already started.", name );
+    if ( IsVpnRunning( name ) )
+    {
+        spdlog::warn( "Configuration already connected: {}", name );
+
+        // Find the network device that is referred to in the configuration to find out its IP
+        std::regex devPattern( "^dev +([^ ]+)", std::regex::ECMAScript );
+        auto devMatch = ReadConfigFileOption( filename, devPattern );
+        if ( devMatch.size() == 2 )
+        {
+            const auto deviceName = devMatch[1].str();
+            std::vector<Command::INetworkDetailSource::NetworkDetail> details;
+            (void)GetNetworkDetails( details );
+            auto network = std::find_if( details.begin(), details.end(), [deviceName]( auto& element ) {
+                return element.InterfaceName == deviceName;
+            } );
+            if ( network != details.end() )
+            {
+                ipAddress = network->Ipv4Address;
+                return AlreadyRunning;
+            }
+        }
+        else
+        {
+            spdlog::error( "Could not find device name within {}. Please make sure the configuration contains a 'dev "
+                           "<name>' line with <name> being unique for this configuration.",
+                           filename );
+            return Error;
+        }
+    }
+
+    off_t oldpos = 0;
+    spdlog::info( "Checking for log file presence." );
+    auto fd = open( logFilePath.c_str(), O_RDONLY );
+    if ( fd < 0 )
+    {
+        spdlog::warn( "Could not open {}", logFilePath );
+    }
+    else
+    {
+        (void)lseek( fd, 0, SEEK_END );
+        oldpos = lseek( fd, 0, SEEK_SET );
+        close( fd );
+    }
 
     spdlog::info( "Starting openvpn interface." );
     std::string command{ "/etc/init.d/openvpn start " };
     command.append( name );
-    system( command.c_str() );
+    auto [output, error] = runCmdWithOutput( command.c_str() );
+    if ( error )
+    {
+        return Error;
+    }
+    (void)output;
 
     auto startTime     = std::chrono::steady_clock::now();
     const auto endTime = startTime + std::chrono::seconds( 15 );
@@ -455,7 +552,13 @@ Command::IVPNActor::ConnectionStatusVPN Ubus::UbusImpl::StartVPN( const std::str
     bool gotStart{ false };
     while ( std::chrono::steady_clock::now() < endTime )
     {
-        auto fd = open( "/etc/openvpn/openvpn.log", O_RDONLY );
+        auto fd = open( logFilePath.c_str(), O_RDONLY );
+        if ( fd < 0 )
+        {
+            spdlog::warn( "Could not open {}, will retry", logFilePath );
+            usleep( 100000 );
+            continue;
+        }
         (void)lseek( fd, oldpos, SEEK_SET );
         std::vector<char> buffer( 1024 );
         auto bytesRead = read( fd, &buffer[0], buffer.size() );
@@ -474,7 +577,8 @@ Command::IVPNActor::ConnectionStatusVPN Ubus::UbusImpl::StartVPN( const std::str
         std::smatch matches;
         if ( regex_search( text, matches, startLine ) && matches.size() == 2 )
         {
-            spdlog::info( "Found IP in log: {}", matches[1].str() );
+            ipAddress = matches[1].str();
+            spdlog::info( "Found IP in log: {}", ipAddress );
             gotStart = true;
             break;
         }
@@ -484,28 +588,7 @@ Command::IVPNActor::ConnectionStatusVPN Ubus::UbusImpl::StartVPN( const std::str
         return Error;
     }
 
-    while ( std::chrono::steady_clock::now() < endTime )
-    {
-        usleep( 100000 );
-        details.clear();
-        (void)GetNetworkDetails( details );
-        network = std::find_if( details.begin(), details.end(), [name]( auto& element ) {
-            return element.InterfaceName == name;
-        } );
-
-        if ( network != details.end() )
-        {
-            ipAddress  = network->Ipv4Address;
-            auto index = ipAddress.find( '/' );
-            if ( index != std::string::npos )
-            {
-                ipAddress = ipAddress.substr( 0, index );
-            }
-            spdlog::info( "Interface {} found with IP: {}", name, ipAddress );
-            return Established;
-        }
-    }
-    return Error; // Timeout
+    return Established;
 }
 
 Command::IVPNActor::ConnectionStatusVPN Ubus::UbusImpl::StopVPN( const std::string& name )
@@ -521,64 +604,32 @@ Command::IVPNActor::ConnectionStatusVPN Ubus::UbusImpl::StopVPN( const std::stri
         return NoConfiguration;
     }
 
-    std::vector<Command::INetworkDetailSource::NetworkDetail> details;
-    (void)GetNetworkDetails( details );
-    auto network = std::find_if( details.begin(), details.end(), [name]( auto& element ) {
-        return element.InterfaceName == name;
-    } );
-
-    if ( network == details.end() )
+    if ( !IsVpnRunning( name ) )
     {
-        spdlog::error( "Configuration is not connected: {}", name );
-        return AlreadyStopped;
+        spdlog::warn( "Configuration {} is not connected, will try to stop anyway.", name );
     }
-
-    auto fd = open( "/etc/openvpn/openvpn.log", O_RDONLY );
-    if ( fd < 0 )
-    {
-        spdlog::error( "Could not open /etc/openvpn/openvpn.log" );
-        return Error;
-    }
-    (void)lseek( fd, 0, SEEK_END );
-    auto oldpos = lseek( fd, 0, SEEK_SET );
-    close( fd );
 
     std::string command{ "/etc/init.d/openvpn stop " };
     command.append( name );
-    system( command.c_str() );
+    auto [output, error] = runCmdWithOutput( command.c_str() );
+    if ( error )
+    {
+        return Error;
+    }
+    (void)output;
+
     auto startTime     = std::chrono::steady_clock::now();
     const auto endTime = startTime + std::chrono::seconds( 10 );
 
-    std::string pattern{ "openvpn-hotplug down " };
-    pattern.append( name );
-    std::regex startLine( pattern, std::regex_constants::ECMAScript );
-
-    std::string text;
     bool gotStop{ false };
     while ( std::chrono::steady_clock::now() < endTime )
     {
-        auto fd = open( "/etc/openvpn/openvpn.log", O_RDONLY );
-        (void)lseek( fd, oldpos, SEEK_SET );
-        std::vector<char> buffer( 1024 );
-        auto bytesRead = read( fd, &buffer[0], buffer.size() );
-        close( fd );
-        if ( bytesRead == 0 )
+        if ( !IsVpnRunning( name ) )
         {
-            usleep( 100000 );
-            continue;
-        }
-        if ( bytesRead < 0 )
-        {
-            break;
-        }
-        text.append( &buffer[0], &buffer[bytesRead] );
-        oldpos += bytesRead;
-        if ( regex_search( text, startLine ) )
-        {
-            spdlog::info( "Found stop" );
             gotStop = true;
             break;
         }
+        usleep( 100000 );
     }
     return gotStop ? Disconnected : Error;
 }
@@ -611,15 +662,9 @@ bool Ubus::UbusImpl::GetVPNConfigurations( std::vector<VPNConfiguration>& config
             auto path = entry.path();
             if ( path.extension() == ".ovpn" )
             {
-                auto name = path.stem();
-                config.push_back( VPNConfiguration{ .Name = name, .IsConnected = false } );
-                std::string statusFileName = "/var/run/openvpn.";
-                statusFileName.append( name );
-                statusFileName.append( ".status" );
-                if ( std::experimental::filesystem::exists( statusFileName ) )
-                {
-                    config.back().IsConnected = true;
-                }
+                auto name   = path.stem();
+                auto status = IsVpnRunning( name );
+                config.push_back( VPNConfiguration{ .Name = name, .IsConnected = status } );
             }
         }
     }
@@ -679,287 +724,231 @@ bool Ubus::UbusImpl::GetPortForwardings( std::vector<PortForwardingConfiguration
     return true;
 }
 
-#if 0
-static void receive_list_result(struct ubus_context *ctx, struct ubus_object_data *obj, void *priv)
-{
-    std::vector<NetworkDetails> * details = reinterpret_cast<std::vector<NetworkDetails>*>(priv);
-    NetworkDetail detail;
-    detail.Name = obj->path;
-    details.push_back(detail);
-}
-
-enum {
-	NETWORK_DETAILS_IPV4ADDRESS,
-	NETWORK_DETAILS_IPV6ADDRESS,
-	NETWORK_DETAILS_IPV6PREFIX,
-	NETWORK_DETAILS_ROUTE,
-	NETWORK_DETAILS_DEVICE,
-	__NETWORK_DETAILS_MAX
-};
-
-enum {
-    IP_ADDRESS,
-    IP_MASK,
-    __IP_MAX
-}
-
-static const struct blobmsg_policy networkdetails_policy[__NETWORK_DETAILS_MAX] = {
-	[NETWORK_DETAILS_IPV4ADDRESS] = { .name = "ipv4-address", .type = BLOBMSG_TYPE_ARRAY },
-	[NETWORK_DETAILS_IPV6ADDRESS] = { .name = "ipv6-address", .type = BLOBMSG_TYPE_ARRAY },
-	[NETWORK_DETAILS_IPV6PREFIX] = { .name = "ipv6-prefix", .type = BLOBMSG_TYPE_ARRAY },
-	[NETWORK_DETAILS_ROUTE] = { .name = "route", .type = BLOBMSG_TYPE_ARRAY },
-	[NETWORK_DETAILS_DEVICE] = { .name = "device", .type = BLOBMSG_TYPE_STRING },
-};
-
-// Only care for the first instance
-static const struct blobmsg_policy ip_address_array_policy[1] = {
-    [0] = { .type = BLOBMSG_TYPE_TABLE },
-};
-
-static const struct blobmsg_policy ip_address_table_policy[__IP_MAX] = {
-    [IP_ADDRESS] = { .name = "address", .type = BLOBMSG_TYPE_STRING },
-    [IP_MASK] = { .name = "mask", .type = BLOBMSG_TYPE_INT},
-};
-
-static void receive_call_result_data(struct ubus_request *req, int type, struct blob_attr *msg)
-{
-    NetworkDetail* detail = reinterpret_cast<NetworkDetail*>(reg->priv);
-    struct blob_attr *tb[__NETWORK_DETAILS_MAX];
-    if(blobmsg_parse(networkdetails_policy, __NETWORK_DETAILS_MAX, tb, blobmsg_data(msg), blobmsg_len(msg)))
-    {
-        spdlog::error("Unable to parse network details.");
-        return;
-    }
-    if (blobmsg_data(tb[NETWORK_DETAILS_IPV4ADDRESS]))
-    {
-        struct blob_attr *array[1];
-        struct blob_atrr *tb1[__IP_MAX];
-        const char *wanip;
-
-        blobmsg_parse_array(ip_address_array_policy, 1, array, blobmsg_data(tb[NETWORK_DETAILS_IPV4ADDRESS]), blobmsg_len(tb[NETWORK_DETAILS_IPV4ADDRESS]));
-        blobmsg_parse(ip_address_table_policy, __IP_MAX, tb1, blobmsg_data(array[0]), blob_len(array[0]));
-
-        if( blobmsg_data(tl1[IP_ADDRESS]) )
-        {
-            detail->Ipv4Address = blobmsg_get_string(tb1[IP_ADDRESS]);
-        }
-        if( blobmsg_data(tl1[IP_MASK]) )
-        {
-            auto netmask = blobmsg_get_int(tb1[IP_MASK]);
-            uint32_t allbits = 0xFFFFFFFF;
-            uint32_t shiftbitsdown = allbits >> (32 - netmask); // lose the lower bits
-            uint32_t netmaskbits = shiftbitsdown << (32 - netmask);
-            detail->Ipv4Netmask = std::format("%d.%d.%d.%d", netmaskbits >> 24, (netmaskbits >> 16) & 0xFFu, (netmaskbits >> 8) & 0xFFu, netmaskbits & 0xFFu );
-        }
-    }
-    if (blobmsg_data(tb[NETWORK_DETAILS_IPV6ADDRESS]))
-    {
-        struct blob_attr *array[1];
-        struct blob_atrr *tb1[__IP_MAX];
-        const char *wanip;
-
-        blobmsg_parse_array(ip_address_array_policy, 1, array, blobmsg_data(tb[NETWORK_DETAILS_IPV6ADDRESS]), blobmsg_len(tb[NETWORK_DETAILS_IPV6ADDRESS]));
-        blobmsg_parse(ip_address_table_policy, __IP_MAX, tb1, blobmsg_data(array[0]), blob_len(array[0]));
-
-        if( blobmsg_data(tl1[IP_ADDRESS]) )
-        {
-            detail->Ipv6Address = blobmsg_get_string(tb1[IP_ADDRESS]);
-        }
-        if( blobmsg_data(tl1[IP_MASK]) )
-        {
-            detail->Ipv6Netmask = std::format("%d", blobmsg_get_int(tb1[IP_MASK]));
-        }
-    }
-    if (blobmsg_data(tb[NETWORK_DETAILS_IPV6PREFIX]))
-    {
-        struct blob_attr *array[1];
-        struct blob_atrr *tb1[__IP_MAX];
-        const char *wanip;
-
-        blobmsg_parse_array(ip_address_array_policy, 1, array, blobmsg_data(tb[NETWORK_DETAILS_IPV6PREFIX]), blobmsg_len(tb[NETWORK_DETAILS_IPV6PREFIX]));
-        blobmsg_parse(ip_address_table_policy, __IP_MAX, tb1, blobmsg_data(array[0]), blob_len(array[0]));
-
-        if( blobmsg_data(tl1[IP_ADDRESS]) && blobmsg_data(tl1[IP_MASK]) )
-        {
-            detail->Ipv6Prefix = std::format("%s/%d", blobmsg_get_string(tb1[IP_ADDRESS], blobmsg_get_int(tb1[IP_MASK]));
-        }
-    }
-    if (blobmsg_data(tb[NETWORK_DETAILS_ROUTE]))
-    {
-        struct blob_attr *array[1];
-        struct blob_atrr *tb1[__IP_MAX];
-        const char *wanip;
-
-        blobmsg_parse_array(ip_address_array_policy, 1, array, blobmsg_data(tb[NETWORK_DETAILS_IPV6ADDRESS]), blobmsg_len(tb[NETWORK_DETAILS_IPV6ADDRESS]));
-        blobmsg_parse(ip_address_table_policy, __IP_MAX, tb1, blobmsg_data(array[0]), blob_len(array[0]));
-
-        if( blobmsg_data(tl1[IP_ADDRESS]) && blobmsg_data(tl1[IP_MASK]) )
-        {
-            detail->Ipv6Prefix = std::format("%s/%d", blobmsg_get_string(tb1[IP_ADDRESS], blobmsg_get_int(tb1[IP_MASK]));
-        }
-    }
-
-
-}
-
-bool Ubus::UbusImpl::GetNetworkDetails(std::vector<NetworkDetails>& details)
-{
-	struct ubus_context *ctx = ubus_connect(NULL);
-    details.clear();
-
-	if (!ctx) {
-		spdlog::error("Unable to connect to ubus backend");
-        return false;
-    }
-
-    if(ubus_lookup(ctx, "network.interface.*", receive_list_result, &details) )
-    {
-		spdlog::error("Unable to enumerate ubus path 'network.interface.*'");
-        ubus_free(ctx);
-        return false;
-    }
-
-    for( auto& detail: details)
-    {
-        struct blob_buf b;
-        blob_buf_init(&b, 0);
-
-	    if( ubus_lookup_id(ctx, detail.Name.c_str(), &id) )
-        {
-    		spdlog::error("Unable to enumerate ubus path 'network.interface.*'");
-            ubus_free(ctx);
-            return false;
-        }
-
-	    if( ubus_invoke(ctx, id, "status", b.head, receive_call_result_data, &detail, 1000) )
-        {
-    		spdlog::error("Unable to invoke status call on ubus path '{}'", detail.Name);
-            ubus_free(ctx);
-            return false;
-        }
-
-    }
-
-}
-#endif
-
-static std::string runCmdWithOutput( const std::string& command )
-{
-    std::vector<char> buffer( 1024 );
-    std::string output;
-    auto pipe = popen( command.c_str(), "r" );
-    if ( !pipe )
-    {
-        spdlog::error( "Pipe open for command {} failed: {}", command, errno );
-        return output;
-    }
-    size_t bytesRead{ 0 };
-    while ( ( bytesRead = fread( buffer.data(), 1U, buffer.size(), pipe ) ) > 0 )
-    {
-        output += std::string_view( &buffer[0], bytesRead );
-    }
-    auto error = pclose( pipe );
-    if ( error != 0 )
-    {
-        spdlog::error( "Command {} return error code {}", command, error );
-        output = "";
-    }
-    return output;
-}
-
 bool Ubus::UbusImpl::GetNetworkDetails( std::vector<NetworkDetail>& details )
 {
-    auto ipAddrOutput    = runCmdWithOutput( "/sbin/ip addr show" );
-    auto ipv4RouteOutput = runCmdWithOutput( "/sbin/ip -4 route show" );
-    auto ipv6RouteOutput = runCmdWithOutput( "/sbin/ip -6 route show" );
-
-    std::regex interfaceLine(
-            "[0-9]+: ([a-zA-Z0-9.@]+): <([\\w_,-]*)>[^\n]* state ([a-zA-Z]+)[^\n]*[\n](( [^\n]+[\n])*)" );
-    std::regex addr4Line( " +inet ([0-9.\\/]+) brd [0-9.\\/]+ scope global.*" );
-    std::regex addr6Line( " +inet6 ([0-9a-f:\\/]+) scope global.*" );
-    std::regex macLine( " +link\\/ether ([0-9a-f:]+) brd [0-9a-f:]+" );
-    std::regex routeLine( "default via ([0-9a-f.:]+) dev ([0-9a-zA-Z.]+)" );
-
-    auto found = std::sregex_iterator( ipAddrOutput.begin(), ipAddrOutput.end(), interfaceLine );
-    for ( std::sregex_iterator i = found; i != std::sregex_iterator(); ++i )
+    auto [ipAddrOutput, err1]    = runCmdWithOutput( "/sbin/ip --json addr show" );
+    auto [ipv4RouteOutput, err2] = runCmdWithOutput( "/sbin/ip --json -4 route show" );
+    auto [ipv6RouteOutput, err3] = runCmdWithOutput( "/sbin/ip --json -6 route show" );
+    if ( err1 || err2 || err3 ) // one of the commands failed
     {
-        std::smatch sm = *i;
-        if ( sm.size() > 4 )
+        return false;
+    }
+
+    rapidjson::Document addressesJson;
+    addressesJson.Parse( ipAddrOutput );
+
+    if ( addressesJson.HasParseError() )
+    {
+        spdlog::error( "Failed to parse ip addr show json output: {}", ipAddrOutput );
+        return false;
+    }
+    if ( !addressesJson.IsArray() )
+    {
+        spdlog::error( "Expected array of interfaces, got {}", ipAddrOutput );
+        return false;
+    }
+
+    rapidjson::Document routes4Json;
+    routes4Json.Parse( ipv4RouteOutput );
+
+    if ( routes4Json.HasParseError() )
+    {
+        spdlog::error( "Failed to parse ip -4 route json output: {}", ipv4RouteOutput );
+        return false;
+    }
+    if ( !routes4Json.IsArray() )
+    {
+        spdlog::error( "Expected array of interfaces, got {}", ipv4RouteOutput );
+        return false;
+    }
+
+    rapidjson::Document routes6Json;
+    routes6Json.Parse( ipv6RouteOutput );
+
+    if ( routes6Json.HasParseError() )
+    {
+        spdlog::error( "Failed to parse ip -6 route json output: {}", ipv6RouteOutput );
+        return false;
+    }
+    if ( !routes6Json.IsArray() )
+    {
+        spdlog::error( "Expected array of interfaces, got {}", ipv6RouteOutput );
+        return false;
+    }
+
+    for ( auto& interface : addressesJson.GetArray() )
+    {
+        NetworkDetail current;
+        if ( !interface.IsObject() )
         {
-            if ( sm[3] == "DOWN" )
+            spdlog::warn( "Expected interface object in {}", ipAddrOutput );
+            continue;
+        }
+        auto name = interface.FindMember( "ifname" );
+        if ( name == interface.MemberEnd() || !name->value.IsString() )
+        {
+            spdlog::warn( "No ifname or wrong type in {}", ipAddrOutput );
+            continue;
+        }
+        current.InterfaceName = name->value.GetString();
+
+        auto mac = interface.FindMember( "address" );
+        if ( mac == interface.MemberEnd() || !mac->value.IsString() )
+        {
+            spdlog::debug( "No MAC address or wrong type in {}", current.InterfaceName );
+            // This is normal for some interfaces
+        }
+        else
+        {
+            current.MacAddress = mac->value.GetString();
+        }
+
+        auto flags = interface.FindMember( "flags" );
+        if ( flags == interface.MemberEnd() || !flags->value.IsArray() )
+        {
+            spdlog::info( "No flags or wrong type in {}", ipAddrOutput );
+        }
+        else
+        {
+            for ( auto& flag : flags->value.GetArray() )
+            {
+                if ( !flag.IsString() )
+                {
+                    continue;
+                }
+                if ( !strcmp( flag.GetString(), "POINTOPOINT" ) )
+                {
+                    spdlog::info( "Found point to point interface {}", current.InterfaceName );
+                    current.IsVpn = true;
+                }
+            }
+        }
+
+        auto addrInfo = interface.FindMember( "addr_info" );
+        if ( addrInfo == interface.MemberEnd() || !addrInfo->value.IsArray() )
+        {
+            spdlog::warn( "No addr_info or wrong type in {}", ipAddrOutput );
+            continue;
+        }
+        for ( auto& addressEntry : addrInfo->value.GetArray() )
+        {
+            if ( !addressEntry.IsObject() )
+            {
+                spdlog::warn( "Expected address object in {}", ipAddrOutput );
                 continue;
-            NetworkDetail item;
-            item.InterfaceName = sm[1];
-            auto index         = item.InterfaceName.find( '@' );
-            if ( index != std::string::npos )
-            {
-                item.InterfaceName = item.InterfaceName.substr( 0, index );
             }
-            std::smatch innerMatch;
-            auto innerLines = sm[4].str();
-            if ( std::regex_search( innerLines, innerMatch, addr4Line ) )
+            auto scope = addressEntry.FindMember( "scope" );
+            if ( scope == addressEntry.MemberEnd() || !scope->value.IsString() )
             {
-                item.Ipv4Address = innerMatch[1].str();
+                spdlog::warn( "No scope or wrong type in {}", ipAddrOutput );
+                continue;
             }
-            if ( std::regex_search( innerLines, innerMatch, addr6Line ) )
+            // Only show details for scope: global (not host or link)
+            if ( strcmp( scope->value.GetString(), "global" ) )
             {
-                item.Ipv6Address = innerMatch[1].str();
+                continue;
             }
-            if ( std::regex_search( innerLines, innerMatch, macLine ) )
+            auto family = addressEntry.FindMember( "family" );
+            if ( family == addressEntry.MemberEnd() || !family->value.IsString() )
             {
-                item.MacAddress = innerMatch[1].str();
+                spdlog::warn( "No family or wrong type in {}", ipAddrOutput );
+                continue;
             }
-            if ( sm[2].str().find( "POINTOPOINT" ) != std::string::npos )
+            auto local = addressEntry.FindMember( "local" );
+            if ( local == addressEntry.MemberEnd() || !local->value.IsString() )
             {
-                item.IsVpn = true;
+                spdlog::warn( "No local address or wrong type in {}", ipAddrOutput );
+                continue;
+            }
+            if ( !strcmp( family->value.GetString(), "inet" ) )
+            {
+                current.Ipv4Address = fmt::format( "{}", local->value.GetString() );
+            }
+            else if ( !strcmp( family->value.GetString(), "inet6" ) )
+            {
+                current.Ipv6Address = fmt::format( "{}", local->value.GetString() );
             }
             else
             {
-                item.IsVpn = false;
-            }
-            if ( !item.Ipv4Address.empty() || !item.Ipv6Address.empty() )
-            {
-                details.push_back( item );
+                spdlog::debug( "Unknown family {} ignored.", family->value.GetString() );
             }
         }
-    }
-
-    found = std::sregex_iterator( ipv4RouteOutput.begin(), ipv4RouteOutput.end(), routeLine );
-    for ( std::sregex_iterator i = found; i != std::sregex_iterator(); ++i )
-    {
-        std::smatch sm = *i;
-        if ( sm.size() > 2 )
+        for ( auto& v4route : routes4Json.GetArray() )
         {
-            auto interface = sm[2].str();
-            auto gateway   = sm[1].str();
-            for ( auto& it : details )
+            if ( !v4route.IsObject() )
             {
-                if ( it.InterfaceName == interface )
-                {
-                    it.Ipv4Gateway = gateway;
-                }
+                spdlog::error( "Expected route object in {}", ipv4RouteOutput );
+                continue;
+            }
+            auto dev = v4route.FindMember( "dev" );
+            if ( dev == v4route.MemberEnd() || !dev->value.IsString() )
+            {
+                spdlog::debug( "No dev or wrong type in {}", ipv4RouteOutput );
+                continue;
+            }
+            if ( strcmp( dev->value.GetString(), current.InterfaceName.c_str() ) )
+            {
+                continue;
+            }
+            auto gateway = v4route.FindMember( "gateway" );
+            if ( gateway == v4route.MemberEnd() || !gateway->value.IsString() )
+            {
+                spdlog::debug( "No gateway or wrong type in {}", ipv4RouteOutput );
+                continue;
+            }
+            auto dst = v4route.FindMember( "dst" );
+            if ( dst == v4route.MemberEnd() || !dst->value.IsString() )
+            {
+                spdlog::debug( "No dst or wrong type in {}", ipv4RouteOutput );
+                continue;
+            }
+            if ( !strcmp( dst->value.GetString(), "default" ) )
+            {
+                current.Ipv4Gateway = gateway->value.GetString();
+                break;
             }
         }
-    }
 
-    found = std::sregex_iterator( ipv6RouteOutput.begin(), ipv6RouteOutput.end(), routeLine );
-    for ( std::sregex_iterator i = found; i != std::sregex_iterator(); ++i )
-    {
-        std::smatch sm = *i;
-        if ( sm.size() > 2 )
+        for ( auto& v6route : routes6Json.GetArray() )
         {
-            auto interface = sm[2].str();
-            auto gateway   = sm[1].str();
-            for ( auto& it : details )
+            if ( !v6route.IsObject() )
             {
-                if ( it.InterfaceName == interface )
-                {
-                    it.Ipv6Gateway = gateway;
-                }
+                spdlog::error( "Expected route object in {}", ipv6RouteOutput );
+                continue;
+            }
+            auto dev = v6route.FindMember( "dev" );
+            if ( dev == v6route.MemberEnd() || !dev->value.IsString() )
+            {
+                spdlog::debug( "No dev or wrong type in {}", ipv6RouteOutput );
+                continue;
+            }
+            if ( strcmp( dev->value.GetString(), current.InterfaceName.c_str() ) )
+            {
+                continue;
+            }
+            auto gateway = v6route.FindMember( "gateway" );
+            if ( gateway == v6route.MemberEnd() || !gateway->value.IsString() )
+            {
+                spdlog::debug( "No gateway or wrong type in {}", ipv6RouteOutput );
+                continue;
+            }
+            auto dst = v6route.FindMember( "dst" );
+            if ( dst == v6route.MemberEnd() || !dst->value.IsString() )
+            {
+                spdlog::debug( "No dst or wrong type in {}", ipv6RouteOutput );
+                continue;
+            }
+            if ( !strcmp( dst->value.GetString(), "default" ) )
+            {
+                current.Ipv6Gateway = gateway->value.GetString();
+                break;
             }
         }
+        if ( !current.Ipv4Address.empty() || !current.Ipv6Address.empty() )
+        {
+            details.push_back( current );
+        }
     }
-
     return true;
 }
 

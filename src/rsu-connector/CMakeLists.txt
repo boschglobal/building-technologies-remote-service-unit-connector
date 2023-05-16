@@ -103,8 +103,7 @@ set(INC
 )
 
 add_executable(${TARGET_NAME} ${SRC} ${INC} ${BASE64SRC})
-target_link_libraries(${TARGET_NAME} PRIVATE ${azurelibs} uhttp ${spdlog} ${fmt} ssl crypto oatpp::oatpp )
-TARGET_LINK_LIBRARIES(${TARGET_NAME} PRIVATE cppbase64)
+target_link_libraries(${TARGET_NAME} PRIVATE ${azurelibs} uhttp ${spdlog} ${fmt} ssl crypto oatpp::oatpp cppbase64 )
 target_include_directories(${TARGET_NAME} PRIVATE . ${oatpp_INCLUDE_DIRS} ${iothub_client_include_dir}/azureiot)
 target_compile_options(${TARGET_NAME} PRIVATE ${EXECUTABLE_COMPILE_OPTIONS})
 set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 17)
@@ -183,8 +182,7 @@ set(INC
     )
 
 add_executable(${TARGET_NAME} ${SRC} ${INC} ${BASE64SRC} )
-target_link_libraries(${TARGET_NAME} PRIVATE ${azurelibs} curl uhttp oatpp::oatpp ${ubus} ${ubox} ${uci} ${spdlog} ${fmt} stdc++fs ssl crypto spdlog)
-TARGET_LINK_LIBRARIES(${TARGET_NAME} PRIVATE cppbase64)
+target_link_libraries(${TARGET_NAME} PRIVATE ${azurelibs} curl uhttp oatpp::oatpp ${ubus} ${ubox} ${uci} ${spdlog} ${fmt} stdc++fs ssl crypto spdlog cppbase64)
 target_include_directories(${TARGET_NAME} PRIVATE . ${oatpp_INCLUDE_DIRS} ${iothub_client_include_dir}/azureiot)
 target_compile_options(${TARGET_NAME} PRIVATE ${EXECUTABLE_COMPILE_OPTIONS})
 set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 17)
@@ -211,6 +209,7 @@ set(TESTSRC
     unittest/CommandGetVPNConfigurationsTest.cpp
     unittest/CommandGetNetworkDetailsTest.cpp
     unittest/CommandRestartConnectorTest.cpp
+    unittest/UbusTest.cpp
     unittest/testmain.cpp
     )
 
@@ -226,8 +225,7 @@ set(TARGET_NAME UT_rsu-connector)
 add_executable(${TARGET_NAME} ${TESTSRC} ${TESTINC} ${INC} ${BASE64SRC})
 add_dependencies(${TARGET_NAME} clean_coverage)
 target_include_directories(${TARGET_NAME} PRIVATE . ${DOCTESTINC} ${oatpp_INCLUDE_DIRS} ${iothub_client_include_dir}/azureiot)
-target_link_libraries(${TARGET_NAME} PRIVATE oatpp::oatpp ${spdlog} ${fmt} ssl crypto)
-TARGET_LINK_LIBRARIES(${TARGET_NAME} PRIVATE cppbase64)
+target_link_libraries(${TARGET_NAME} PRIVATE oatpp::oatpp ${ubox} ${uci} ${spdlog} ${fmt} stdc++fs ssl crypto cppbase64)
 target_compile_options(${TARGET_NAME} PRIVATE ${TEST_COMPILE_OPTIONS})
 set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 17)
 target_link_options(${TARGET_NAME} BEFORE PRIVATE ${TEST_LINK_OPTIONS})

@@ -140,7 +140,7 @@ int main( int argc, char** argv )
     }
     catch ( const std::exception& e )
     {
-        spdlog::info( "Could not read firewall_zone entry: ", e.what() );
+        spdlog::info( "Could not read firewall_zone entry: {}", e.what() );
     }
 
     bool forwardToEffilink{ true };
@@ -150,10 +150,20 @@ int main( int argc, char** argv )
     }
     catch ( const std::exception& e )
     {
-        spdlog::info( "Could not read forward_to_effilink entry: ", e.what() );
+        spdlog::info( "Could not read forward_to_effilink entry: {}", e.what() );
     }
 
-    auto ubus = std::make_shared<Ubus>( firewallZone );
+    std::string openVpnLogFile = "/tmp/rsu-connector/openvpn.log";
+    try
+    {
+        openVpnLogFile = config->GetStringValue( "openvpn_log" );
+    }
+    catch ( const std::exception& e )
+    {
+        spdlog::warn( "Could not read openvpn_log entry: {}", e.what() );
+    }
+
+    auto ubus = std::make_shared<Ubus>( firewallZone, openVpnLogFile );
     auto twin = std::make_shared<DeviceTwin>( ubus );
     iotHubClient->SetDeviceTwinHandler(
             [twin]( const std::string& json, bool partial ) -> void { twin->ReceiveDeviceTwin( json, partial ); } );

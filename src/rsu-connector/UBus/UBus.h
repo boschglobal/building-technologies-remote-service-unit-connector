@@ -18,8 +18,7 @@ class Ubus : public IDeviceInformation, public Command::INetworkDetailSource, pu
 {
 public:
 
-
-    Ubus(const std::string firewallZone);
+    Ubus(const std::string& firewallZone, const std::string& openVpnLogPath);
     virtual ~Ubus();
     
     std::string Name();

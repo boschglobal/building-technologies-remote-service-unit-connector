@@ -19,7 +19,7 @@ git submodule update --init --recursive
 
 #### Docker file
 
-Refer to [Dockerfile](./Dockerfile) for setting up the build environment.
+Refer to [Dockerfile](./../Dockerfile) for setting up the build environment.
 
 #### Build the container image
 

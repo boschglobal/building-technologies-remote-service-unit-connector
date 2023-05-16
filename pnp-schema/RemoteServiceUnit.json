@@ -50,6 +50,14 @@
         },
         {
             "@type": "Property",
+            "name": "LegacyRemoteConnectionEnabled",
+            "displayName": "Legac remote connection enabled",
+            "description": "Legac remote connection is used for remote maintenance service.",
+            "schema": "boolean",
+            "writable": true
+        },
+        {
+            "@type": "Property",
             "name": "VPNConnectionActive",
             "displayName": "VPN connection active",
             "description": "True if the Remote Service Unit is connected to the VPN Gateway.",

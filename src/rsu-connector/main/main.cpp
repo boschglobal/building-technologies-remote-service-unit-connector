@@ -308,21 +308,30 @@ int main( int argc, char** argv )
                         spdlog::info( "Forwarding telemetry to Effilink, path {} size {}",
                                       dto.RequestPath,
                                       dto.RequestBody.size() );
-
-                        // forward response body and status from client request to server response
-                        dto.ResponseCode = client->SendRequest( dto.RequestPath,
-                                                                dto.RequestBody,
-                                                                "application/json",
-                                                                dto.ResponseBody,
-                                                                responseStatusDescription );
-                        spdlog::info( "Forwarded response body {} status <{}-{}>",
-                                      dto.ResponseBody,
-                                      dto.ResponseCode,
-                                      responseStatusDescription );
+                        try 
+                        {
+                            // forward response body and status from client request to server response
+                            dto.ResponseCode = client->SendRequest( dto.RequestPath,
+                                                                    dto.RequestBody,
+                                                                    "application/json",
+                                                                    dto.ResponseBody,
+                                                                    responseStatusDescription );
+                            spdlog::info( "Forwarded response body {} status <{}-{}>",
+                                        dto.ResponseBody,
+                                        dto.ResponseCode,
+                                        responseStatusDescription );
+                        } 
+                        catch ( std::exception& e )
+                        {
+                            // return status code 200 and OK when the Effilink service on the device is not available or throws a exception
+                            dto.ResponseCode            = 200;
+                            responseStatusDescription   = "OK";
+                            spdlog::error( "Exception occurred during forwarding message to Effilink (check if Effilink service is running): {}", e.what() );
+                        }
                     }
                     else
                     {
-                        spdlog::debug( "Effilink forwarding disabled." );
+                        spdlog::debug( "Effilink message forwarding is disabled." );
                         dto.ResponseCode          = 200;
                         responseStatusDescription = "OK";
                     }

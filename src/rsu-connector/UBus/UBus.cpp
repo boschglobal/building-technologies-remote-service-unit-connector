@@ -37,6 +37,7 @@ struct Ubus::UbusImpl
     std::string Hostname;
     std::string Type;
     std::string Serial;
+    std::string Mac;
     std::string FirmwareVersion;
     std::string OpenVpnLogPath;
     bool ReadProperties();
@@ -271,6 +272,7 @@ enum
     SYSTEM_BOARD_MODEL,
     SYSTEM_BOARD_HOSTNAME,
     SYSTEM_BOARD_SERIAL,
+    SYSTEM_BOARD_MAC,
     SYSTEM_BOARD_RELEASE,
     __SYSTEM_BOARD_MAX
 };
@@ -279,6 +281,7 @@ static const struct blobmsg_policy system_board_policy[__SYSTEM_BOARD_MAX] = {
         [SYSTEM_BOARD_MODEL]    = { .name = "model", .type = BLOBMSG_TYPE_STRING },
         [SYSTEM_BOARD_HOSTNAME] = { .name = "hostname", .type = BLOBMSG_TYPE_STRING },
         [SYSTEM_BOARD_SERIAL]   = { .name = "serial", .type = BLOBMSG_TYPE_STRING },
+        [SYSTEM_BOARD_MAC]      = { .name = "mac", .type = BLOBMSG_TYPE_STRING },
         [SYSTEM_BOARD_RELEASE]  = { .name = "release", .type = BLOBMSG_TYPE_TABLE },
 };
 
@@ -331,6 +334,10 @@ bool Ubus::UbusImpl::ReadProperties()
         if ( blobmsg_data( tb[SYSTEM_BOARD_MODEL] ) )
         {
             Type = blobmsg_get_string( tb[SYSTEM_BOARD_MODEL] );
+        }
+        if ( blobmsg_data( tb[SYSTEM_BOARD_MAC] ) )
+        {
+            Mac = blobmsg_get_string( tb[SYSTEM_BOARD_MAC] );
         }
         if ( blobmsg_data( tb[SYSTEM_BOARD_SERIAL] ) )
         {
@@ -387,19 +394,6 @@ bool Ubus::UbusImpl::ReloadFirewall()
     blob_buf_free( &data );
     ubus_free( ctx );
     return true;
-}
-
-#define SYS_PATH "/sys/class/net/"
-static std::string get_mac( const std::string& device )
-{
-    std::string path{ SYS_PATH };
-    path.append( device );
-    path.append( "/address" );
-
-    std::ifstream is( path, std::ifstream::in );
-    std::string mac;
-    is >> mac;
-    return mac;
 }
 
 // Run a command and return its output and its error code.
@@ -981,7 +975,7 @@ std::string Ubus::FirmwareVersion()
 }
 std::string Ubus::MACAddress()
 {
-    return get_mac( "eth0" );
+    return _impl->Mac;
 }
 
 bool Ubus::VPNConnectionActive()

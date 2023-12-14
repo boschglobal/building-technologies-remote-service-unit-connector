@@ -116,12 +116,13 @@ std::shared_ptr<IProvisioningClient> IotHubFactory::ProvisioningClient( const st
 }
 
 std::shared_ptr<IIotHubClient> IotHubFactory::IotHubClient( const std::string& iotHubUri,
-                                                            const std::string& deviceId ) const
+                                                            const std::string& deviceId,
+                                                            const std::string& statusFile ) const
 {
-    return std::make_shared<IotHubClientWrapper>( iotHubUri, deviceId );
+    return std::make_shared<IotHubClientWrapper>( iotHubUri, deviceId, statusFile );
 }
 
-std::shared_ptr<IIotHubClient> IotHubFactory::IotHubClient( const std::string& connectionString ) const
+std::shared_ptr<IIotHubClient> IotHubFactory::IotHubClient( const std::string& connectionString, const std::string& statusFile ) const
 {
-    return std::make_shared<IotHubClientWrapper>( connectionString );
+    return std::make_shared<IotHubClientWrapper>( connectionString, statusFile );
 }

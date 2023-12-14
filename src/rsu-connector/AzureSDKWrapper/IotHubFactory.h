@@ -34,11 +34,11 @@ public:
     /// @brief Construct a IotHub Client from IotHub URI and DeviceId as returned from the ProvisioningClient.
     /// @param iotHubUri The URI of the IotHub instance.
     /// @param deviceId The device id to be used on this IotHub..
-    std::shared_ptr<IIotHubClient> IotHubClient( const std::string& iotHubUri, const std::string& deviceId ) const;
+    std::shared_ptr<IIotHubClient> IotHubClient( const std::string& iotHubUri, const std::string& deviceId, const std::string& statusFile ) const;
 
     /// @brief Construct a IotHub Client from connection string as given by the Azure portal. This is only provided for testing purposes.
     /// @param connectionString The IotHub connection string.
-    std::shared_ptr<IIotHubClient> IotHubClient( const std::string& connectionString ) const;
+    std::shared_ptr<IIotHubClient> IotHubClient( const std::string& connectionString, const std::string& statusFile ) const;
 
 private:
     struct IotHubFactoryImpl;

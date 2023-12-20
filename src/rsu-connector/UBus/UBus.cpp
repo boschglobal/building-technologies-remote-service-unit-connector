@@ -457,7 +457,7 @@ Command::IVPNActor::ConnectionStatusVPN Ubus::UbusImpl::StartVPN( const std::str
 {
     std::string filename{ "/etc/openvpn/" };
     filename.append( name );
-    filename.append( ".ovpn" );
+    filename.append( ".conf" );
 
     struct stat buffer;
     if ( stat( filename.c_str(), &buffer ) != 0 )
@@ -589,7 +589,7 @@ Command::IVPNActor::ConnectionStatusVPN Ubus::UbusImpl::StopVPN( const std::stri
 {
     std::string filename{ "/etc/openvpn/" };
     filename.append( name );
-    filename.append( ".ovpn" );
+    filename.append( ".conf" );
 
     struct stat buffer;
     if ( stat( filename.c_str(), &buffer ) != 0 )
@@ -632,7 +632,7 @@ bool Ubus::UbusImpl::ConfigureVPN( const std::string& name, const std::string& c
 {
     std::string filename{ "/etc/openvpn/" };
     filename.append( name );
-    filename.append( ".ovpn" );
+    filename.append( ".conf" );
 
     std::ofstream f( filename );
     if ( !f.good() )
@@ -654,7 +654,7 @@ bool Ubus::UbusImpl::GetVPNConfigurations( std::vector<VPNConfiguration>& config
         for ( const auto& entry : std::experimental::filesystem::directory_iterator( directoryName ) )
         {
             auto path = entry.path();
-            if ( path.extension() == ".ovpn" )
+            if ( path.extension() == ".conf" )
             {
                 auto name   = path.stem();
                 auto status = IsVpnRunning( name );

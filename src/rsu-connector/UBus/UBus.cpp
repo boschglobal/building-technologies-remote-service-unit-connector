@@ -988,7 +988,14 @@ bool Ubus::VPNConnectionActive()
     (void)_impl->GetNetworkDetails( details );
     for ( auto& entry : details )
     {
-        isVpnActive |= entry.IsVpn;
+        // FIXME: The OpenVPN interface name is set to 'tun100' in the
+        //        RSF OpenVPN configuration. This interface is created
+        //        dynamically when the OpenVPN server is started. The flag
+        //        'isVpnActive' can therefore be set to 'true' if this
+        //        interface is available. It would be better to move this to
+        //        the rsu configuration to change the name afterwards!
+        if ( entry.InterfaceName == "tun100" )
+            isVpnActive = true;
     }
     return isVpnActive;
 }

@@ -1,6 +1,6 @@
 # How to Build the RSU Connector
 
-[[_TOC_]] 
+[[_TOC_]]
 
 ---
 
@@ -9,9 +9,7 @@
 The RSU connector can be built in Ubuntu 18.04 OS. The example below shows how a docker environment can be used for the build process.
 The following steps assume this repository is checked out in the current directory.
 
-
-
-#### Make sure external submodules are present
+### Make sure external submodules are present
 
 ```bash
 git submodule update --init --recursive
@@ -50,13 +48,12 @@ All the following commands should now be running inside the container.
 
 ---
 
-
 ## Build the OpenWRT
 
 Since some of the modules in the rsu-connector depend on libraries supplied by OpenWRT, we need to have an OpenWRT build present.
 The next steps show how to do this. The variables used here are defined in the Dockerfile.
 
-#### Clone the OpenWRT repository
+### Clone the OpenWRT repository
 
 ``` bash
 
@@ -121,21 +118,21 @@ make package/feeds/rsu/cpp-base64/compile
 
 ## How to Build the Remote Service Unit Connector Application
 
-#### Build Mips binary
+### Build Mips binary
 
 ``` bash
 cd $rsuConnectorSourceDir
 ./build_mips.sh -j5
 ```
 
-#### Build x86_64 binary
+### Build x86_64 binary
 
 ``` bash
 cd $rsuConnectorSourceDir
 ./build_x86.sh -j5
 ```
 
-#### Run unit tests
+### Run unit tests
 
 Needs x86_64 build.
 

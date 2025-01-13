@@ -30,11 +30,13 @@ public:
     /// @brief Construct a Iot Hub Client from device authentication.
     /// @param iotHubUri witch receive from @ref ProvisioningClientWrapper.
     /// @param deviceId witch receive from @ref ProvisioningClientWrapper.
-    IotHubClientWrapper( const std::string& iotHubUri, const std::string& deviceId );
+    /// @param statusFile specifies where the connection status should be saved.
+    IotHubClientWrapper( const std::string& iotHubUri, const std::string& deviceId, const std::string& statusFile );
 
     /// @brief Construct a new Iot Hub Client by connectionString.
     /// @param connectionString of IoT Hub
-    IotHubClientWrapper( const std::string& connectionString );
+    /// @param statusFile specifies where the connection status should be saved.
+    IotHubClientWrapper( const std::string& connectionString, const std::string& statusFile );
 
     /// @brief Destroy the Iot Hub Client Wrapper object.
     virtual ~IotHubClientWrapper() = default;

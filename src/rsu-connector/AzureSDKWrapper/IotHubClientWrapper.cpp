@@ -8,6 +8,7 @@
 #include <vector>
 #include <map>
 #include <functional>
+#include <fstream>
 #include <iostream>
 #include <iomanip>
 #include <mutex>
@@ -58,8 +59,8 @@ static IOTHUBMESSAGE_DISPOSITION_RESULT_TAG ReactionToDisposition( MessageReacti
 
 struct IotHubClientWrapper::IotHubClientWrapperImpl
 {
-    IotHubClientWrapperImpl( const std::string& iotHubUri, const std::string& deviceId );
-    IotHubClientWrapperImpl( const std::string& connectionString );
+    IotHubClientWrapperImpl( const std::string& iotHubUri, const std::string& deviceId, const std::string& statusFile);
+    IotHubClientWrapperImpl( const std::string& connectionString, const std::string& statusFile);
     ~IotHubClientWrapperImpl();
 
     void SetLogTraceOption( bool value );
@@ -83,6 +84,7 @@ struct IotHubClientWrapper::IotHubClientWrapperImpl
         return MessageReaction::Abandoned;
     } };
 
+    std::string statusFileName;
     static void sStatusCallback( IOTHUB_CLIENT_CONNECTION_STATUS result,
                                  IOTHUB_CLIENT_CONNECTION_STATUS_REASON reason,
                                  void* userContextCallback )
@@ -92,6 +94,50 @@ struct IotHubClientWrapper::IotHubClientWrapperImpl
             spdlog::error( "Status callback with NULL user context." );
             return;
         }
+
+        IotHubClientWrapperImpl* ctx = static_cast<IotHubClientWrapperImpl*>( userContextCallback );
+
+        fstream status;
+        status.open( ctx->statusFileName, ios::out );
+        if ( !status )
+        {
+            spdlog::warn( "Status file cannot be created" );
+        }
+        else
+        {
+            switch ( reason )
+            {
+                case IOTHUB_CLIENT_CONNECTION_EXPIRED_SAS_TOKEN:
+                    status << "{ \"status\": \"EXPIRED_SAS_TOKEN\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_DEVICE_DISABLED:
+                    status << "{ \"status\": \"DEVICE_DISABLED\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_BAD_CREDENTIAL:
+                    status << "{ \"status\": \"BAD_CREDENTIAL\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_RETRY_EXPIRED:
+                    status << "{ \"status\": \"RETRY_EXPIRED\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_NO_NETWORK:
+                    status << "{ \"status\": \"NO_NETWORK\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_COMMUNICATION_ERROR:
+                    status << "{ \"status\": \"COMMUNICATION_ERROR\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_OK:
+                    status << "{ \"status\": \"OK\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_NO_PING_RESPONSE:
+                    status << "{ \"status\": \"NO_PING_RESPONSE\" }\n";
+                    break;
+                default:
+                    status << "{ \"status\": \"UNKNOWN\" }\n";
+                    break;
+            }
+            status.close();
+        }
+
         spdlog::info( "Received status {} reason {}", result, reason );
     }
 
@@ -139,12 +185,15 @@ std::mutex IotHubClientWrapper::IotHubClientWrapperImpl::SendMessageLock;
 std::vector<std::shared_ptr<IMessageLifeTimeTracker>> IotHubClientWrapper::IotHubClientWrapperImpl::SendMessageTrackers;
 
 IotHubClientWrapper::IotHubClientWrapperImpl::IotHubClientWrapperImpl( const std::string& iotHubUri,
-                                                                       const std::string& deviceId )
+                                                                       const std::string& deviceId,
+                                                                       const std::string& statusFile )
 {
     if ( iotHubUri.empty() || deviceId.empty() )
     {
         throw std::invalid_argument( "Connection String" );
     }
+
+    statusFileName = statusFile;
 
     IotHubClientHandle = IoTHubDeviceClient_CreateFromDeviceAuth( iotHubUri.c_str(), deviceId.c_str(), MQTT_Protocol );
     if ( !IotHubClientHandle )
@@ -156,12 +205,14 @@ IotHubClientWrapper::IotHubClientWrapperImpl::IotHubClientWrapperImpl( const std
     spdlog::debug( "IotHubClientWrapper" );
 }
 
-IotHubClientWrapper::IotHubClientWrapperImpl::IotHubClientWrapperImpl( const std::string& connectionString )
+IotHubClientWrapper::IotHubClientWrapperImpl::IotHubClientWrapperImpl( const std::string& connectionString, const std::string& statusFile)
 {
     if ( connectionString.empty() )
     {
         throw std::invalid_argument( "Connection String" );
     }
+
+    statusFileName = statusFile;
 
     IotHubClientHandle = IoTHubDeviceClient_CreateFromConnectionString( connectionString.c_str(), MQTT_Protocol );
     if ( !IotHubClientHandle )
@@ -528,14 +579,14 @@ void IotHubClientWrapper::IotHubClientWrapperImpl::sReportedStateCallback( int s
     spdlog::info( "Send reported state response {}", statusCode );
 }
 
-IotHubClientWrapper::IotHubClientWrapper( const std::string& iotHubUri, const std::string& deviceId )
-    : _impl( std::make_shared<IotHubClientWrapperImpl>( iotHubUri, deviceId ) )
+IotHubClientWrapper::IotHubClientWrapper( const std::string& iotHubUri, const std::string& deviceId, const std::string& statusFile )
+    : _impl( std::make_shared<IotHubClientWrapperImpl>( iotHubUri, deviceId, statusFile) )
 {
     spdlog::debug( "Created IotHub client." );
 }
 
-IotHubClientWrapper::IotHubClientWrapper( const std::string& connectionString )
-    : _impl( std::make_shared<IotHubClientWrapperImpl>( connectionString ) )
+IotHubClientWrapper::IotHubClientWrapper( const std::string& connectionString, const std::string& statusFile )
+    : _impl( std::make_shared<IotHubClientWrapperImpl>( connectionString, statusFile ) )
 {
     spdlog::debug( "Created IotHub client." );
 }

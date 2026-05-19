@@ -10,6 +10,7 @@
 #include "common/NonCopyable.h"
 
 #include "IProvisioningClient.h"
+#include "ProxySettings.h"
 
 /// @brief Wrapper for the Azure Device Provisining Service (DPS).
 ///
@@ -21,7 +22,8 @@ class ProvisioningClientWrapper : public IProvisioningClient, private NonCopyabl
 public:
     /// @brief Construct a Device Provisioning Service Client with given Scope Id.
     /// @param scope The Scope Id assigned to the DPS instance to be connected to.
-    ProvisioningClientWrapper( const std::string& scope );
+    /// @param proxy Optional HTTP proxy. When Enabled(), DPS connects through it.
+    ProvisioningClientWrapper( const std::string& scope, const ProxySettings& proxy = {} );
 
     virtual ~ProvisioningClientWrapper() = default;
 

@@ -9,6 +9,7 @@
 #include <memory>
 #include "IProvisioningClient.h"
 #include "IIotHubClient.h"
+#include "ProxySettings.h"
 
 class IotHubFactory
 {
@@ -21,10 +22,12 @@ public:
     /// @param sharedAccessSignature Shared access signature of the device. Leave this empty to use certificate authentication.
     /// @param certificateFileName Filename of the x509 device certificate in PEM format (must be full chain, e.g. include all CA certificates necessary for validation).
     /// @param keyFileName Filename of the device key in PEM format. Must not have a passphrase set.
+    /// @param proxy Optional HTTP proxy. When Enabled(), DPS uses HTTP CONNECT and IoT Hub switches to MQTT-over-WebSocket.
     IotHubFactory( const std::string& registrationId,
                    const std::string& sharedAccessSignature,
                    const std::string& certificateFileName,
-                   const std::string& keyFileName );
+                   const std::string& keyFileName,
+                   const ProxySettings& proxy = {} );
     virtual ~IotHubFactory();
 
     /// @brief Construct a Device Provisioning Client with given Scope Id.

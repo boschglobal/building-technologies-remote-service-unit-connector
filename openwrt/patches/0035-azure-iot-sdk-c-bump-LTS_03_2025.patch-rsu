@@ -1,0 +1,194 @@
+Bump the Azure IoT C SDK and its transport sibling packages in the rsu feed
+to release LTS_03_2025 (2025-03-31), Microsoft's latest LTS at the time of
+writing. This rewrites PKG_VERSION / PKG_SOURCE_VERSION / PKG_MIRROR_HASH on
+each affected Makefile inside `feeds/rsu/libs/` so the existing TDT-AG feed
+pin (openwrt/feeds.conf SHA) can stay untouched.
+
+Submodule SHAs are taken from `.gitmodules` and the submodule pointers in the
+azure-iot-sdk-c tree at tag LTS_03_2025:
+
+  c-utility   772a4f8bc338140b4a0f404cf9c344283c5c937f
+  umqtt       d08d530fc3ae3f60d3f750fab6629a5b7839f754
+  uamqp       6bb9accbbc036ed5ef1df7467760762c99a7094b
+  uhttp       01dc7139d3da3141aa2017dff927db1dbbe86e49
+
+parson, macro-utils-c, and umock-c submodule SHAs are unchanged at this LTS
+and are not touched here.
+
+PKG_MIRROR_HASH is set to `skip` for each bumped package. OpenWrt accepts
+`skip` to bypass mirror-tarball hash verification — fine for in-house builds.
+Before merging, replace each `skip` with the real sha256 reported by the
+first successful `make package/feeds/rsu/<pkg>/download V=s` run.
+
+Companion patches that need attention on this bump:
+
+* 0037-azure-c-shared-utility-proxy-negotiate.patch-rsu — refreshed in the
+  same change to track the new line offset (843 → 820) and the
+  `safe_add_size_t` rename in adapters/httpapi_curl.c at the new c-utility
+  SHA. Verify by inspecting the first build's c-utility Quilt log.
+* 0038-azure-c-shared-utility-mqtt-wss-negotiate.patch-rsu — its inner diff
+  against adapters/http_proxy_io.c was authored against the older c-utility
+  SHA ef6ebf91 and has NOT been re-verified against 772a4f8b. Expect hunk
+  drift on the first build; refresh in place rather than letting the build
+  fall back to fuzzy matching.
+
+diff --git a/libs/azure-iot-sdk-c/Makefile b/libs/azure-iot-sdk-c/Makefile
+--- a/libs/azure-iot-sdk-c/Makefile
++++ b/libs/azure-iot-sdk-c/Makefile
+@@ -8,14 +8,14 @@
+ include $(TOPDIR)/rules.mk
+
+ PKG_NAME:=azure-iot-sdk-c
+-PKG_VERSION:=LTS_01_2021_Ref01
++PKG_VERSION:=LTS_03_2025
+ PKG_RELEASE:=1
+
+ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+ PKG_SOURCE_URL:=https://github.com/Azure/azure-iot-sdk-c
+ PKG_SOURCE_PROTO:=git
+-PKG_SOURCE_VERSION:=17b7d536485b5e69555d76074803495b7b18e7ab
+-PKG_MIRROR_HASH:=f49744038a4fbec7c528fe8ab80df4abe775128d8b97a75ca5572a5debf09109
++PKG_SOURCE_VERSION:=LTS_03_2025
++PKG_MIRROR_HASH:=skip
+
+ PKG_MAINTAINER:=Florian Eckert <fe@dev.tdt.de>
+ PKG_LICENSE:=MIT
+diff --git a/libs/azure-c-shared-utility/Makefile b/libs/azure-c-shared-utility/Makefile
+--- a/libs/azure-c-shared-utility/Makefile
++++ b/libs/azure-c-shared-utility/Makefile
+@@ -9,14 +9,14 @@
+ include $(TOPDIR)/rules.mk
+
+ PKG_NAME:=azure-c-shared-utility
+-PKG_VERSION:=2020-03-04
++PKG_VERSION:=2025-03-31
+ PKG_RELEASE:=1
+
+ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+ PKG_SOURCE_URL:=https://github.com/Azure/azure-c-shared-utility
+ PKG_SOURCE_PROTO:=git
+-PKG_SOURCE_VERSION:=ef6ebf91a2e3530275050f0f789bab9f744c45e9
+-PKG_MIRROR_HASH:=6e49bdcacb3abd04cde91bd7b560e1a92fab8632e0399f0815de478d6eb2ccd9
++PKG_SOURCE_VERSION:=772a4f8bc338140b4a0f404cf9c344283c5c937f
++PKG_MIRROR_HASH:=skip
+
+ PKG_MAINTAINER:=Florian Eckert <fe@dev.tdt.de>
+ PKG_LICENSE:=MIT
+@@ -62,13 +62,9 @@
+ define Build/InstallDev
+ 	$(INSTALL_DIR) $(1)/usr/include/azureiot/azure_c_shared_utility
+-	$(CP) $(PKG_INSTALL_DIR)/usr/include/azureiot/azure_c_shared_utility/*.h \
++	$(CP) $(PKG_INSTALL_DIR)/usr/include/azure_c_shared_utility/*.h \
+ 		$(1)/usr/include/azureiot/azure_c_shared_utility/
+
+ 	$(INSTALL_DIR) $(1)/usr/lib
+ 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/* \
+ 		$(1)/usr/lib/
+-
+-	$(INSTALL_DIR) $(1)/usr/cmake
+-	$(CP) $(PKG_INSTALL_DIR)/usr/cmake/* \
+-		$(1)/usr/cmake
+ endef
+diff --git a/libs/azure-uamqp-c/Makefile b/libs/azure-uamqp-c/Makefile
+--- a/libs/azure-uamqp-c/Makefile
++++ b/libs/azure-uamqp-c/Makefile
+@@ -8,14 +8,14 @@
+ include $(TOPDIR)/rules.mk
+
+ PKG_NAME:=azure-uamqp-c
+-PKG_VERSION:=2021-01-20
++PKG_VERSION:=2025-03-31
+ PKG_RELEASE:=1
+
+ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+ PKG_SOURCE_URL:=https://github.com/Azure/azure-uamqp-c
+ PKG_SOURCE_PROTO:=git
+-PKG_SOURCE_VERSION:=bf3f62e8a2359e2a6b363502097bfcd87c1dff47
+-PKG_MIRROR_HASH:=775a9c756ab5ef7273e896ff8e54f8312101116ef17797d64dbc4d504290e5b6
++PKG_SOURCE_VERSION:=6bb9accbbc036ed5ef1df7467760762c99a7094b
++PKG_MIRROR_HASH:=skip
+
+ PKG_MAINTAINER:=Florian Eckert <fe@dev.tdt.de>
+ PKG_LICENSE:=MIT
+diff --git a/libs/azure-umqtt-c/Makefile b/libs/azure-umqtt-c/Makefile
+--- a/libs/azure-umqtt-c/Makefile
++++ b/libs/azure-umqtt-c/Makefile
+@@ -8,14 +8,14 @@
+ include $(TOPDIR)/rules.mk
+
+ PKG_NAME:=azure-umqtt-c
+-PKG_VERSION:=2021-01-20
++PKG_VERSION:=2025-03-31
+ PKG_RELEASE:=1
+
+ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+ PKG_SOURCE_URL:=https://github.com/Azure/azure-umqtt-c
+ PKG_SOURCE_PROTO:=git
+-PKG_SOURCE_VERSION:=0c369ee8b046906d2666c9c850be1b313012e4a7
+-PKG_MIRROR_HASH:=c6d9cfe8bb3c7db7dc7e867bb2a0ac5d27303785dc335eeb6e5c834ced3ebb8e
++PKG_SOURCE_VERSION:=d08d530fc3ae3f60d3f750fab6629a5b7839f754
++PKG_MIRROR_HASH:=skip
+
+ PKG_MAINTAINER:=Florian Eckert <fe@dev.tdt.de>
+ PKG_LICENSE:=MIT
+@@ -67,9 +67,9 @@
+ 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/*.a \
+ 		$(1)/usr/lib/
+
+-	$(INSTALL_DIR) $(1)/usr/cmake
+-	$(CP) $(PKG_INSTALL_DIR)/usr/cmake/* \
+-		$(1)/usr/cmake
++	$(INSTALL_DIR) $(1)/usr/lib/cmake/umqtt
++	$(CP) $(PKG_INSTALL_DIR)/usr/lib/cmake/umqtt/* \
++		$(1)/usr/lib/cmake/umqtt/
+ endef
+
+ $(eval $(call BuildPackage,azure-umqtt-c))
+diff --git a/libs/azure-uhttp-c/Makefile b/libs/azure-uhttp-c/Makefile
+--- a/libs/azure-uhttp-c/Makefile
++++ b/libs/azure-uhttp-c/Makefile
+@@ -8,14 +8,14 @@
+ include $(TOPDIR)/rules.mk
+
+ PKG_NAME:=azure-uhttp-c
+-PKG_VERSION:=2021-01-20
++PKG_VERSION:=2025-03-31
+ PKG_RELEASE:=1
+
+ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+ PKG_SOURCE_URL:=https://github.com/Azure/azure-uhttp-c
+ PKG_SOURCE_PROTO:=git
+-PKG_SOURCE_VERSION:=d286589762e59f0ad2f92f7c5a58f7979b5ab082
+-PKG_MIRROR_HASH:=9734277922dd9961fc7bd69e4844ddc7669eec675efab78f9f5aa8af19247006
++PKG_SOURCE_VERSION:=01dc7139d3da3141aa2017dff927db1dbbe86e49
++PKG_MIRROR_HASH:=skip
+
+ PKG_MAINTAINER:=Florian Eckert <fe@dev.tdt.de>
+ PKG_LICENSE:=MIT
+@@ -53,20 +53,21 @@
+ CMAKE_OPTIONS += \
+ 		-Duse_installed_dependencies:bool=ON \
+ 		-Duse_openssl:bool=ON \
+-		-Dskip_samples:bool=ON
++		-Dskip_samples:bool=ON \
++		-DCMAKE_INSTALL_INCLUDEDIR=include
+
+ define Build/InstallDev
+ 	$(INSTALL_DIR) $(1)/usr/include/azureiot/azure_uhttp_c
+-	$(CP) $(PKG_INSTALL_DIR)/azureiot/azure_uhttp_c/*.h \
++	$(CP) $(PKG_INSTALL_DIR)/usr/include/azureiot/azure_uhttp_c/*.h \
+ 		$(1)/usr/include/azureiot/azure_uhttp_c/
+
+ 	$(INSTALL_DIR) $(1)/usr/lib
+ 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/*.a \
+ 		$(1)/usr/lib/
+
+-	$(INSTALL_DIR) $(1)/usr/cmake
+-	$(CP) $(PKG_INSTALL_DIR)/usr/cmake/* \
+-		$(1)/usr/cmake
++	$(INSTALL_DIR) $(1)/usr/lib/cmake/uhttp
++	$(CP) $(PKG_INSTALL_DIR)/usr/lib/cmake/uhttp/* \
++		$(1)/usr/lib/cmake/uhttp/
+ endef
+
+ $(eval $(call BuildPackage,azure-uhttp-c))

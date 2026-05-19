@@ -1,0 +1,35 @@
+Add a Negotiate proxy-auth patch to the rsu feed's azure-c-shared-utility package.
+
+The Azure SDK's curl-based HTTP adapter only sets CURLOPT_PROXYUSERPWD, which
+limits proxy authentication to Basic. Add a second patch (002-...) that also
+sets CURLOPT_PROXYAUTH to CURLAUTH_NEGOTIATE | CURLAUTH_BASIC so libcurl can
+satisfy proxies that require Kerberos/SPNEGO (with Basic kept as a fallback).
+
+This is the DPS / HTTPS code path. The MQTT-over-WSS path lives in
+http_proxy_io.c and needs a separate, larger patch.
+
+Refreshed for c-utility at LTS_03_2025 (SHA 772a4f8b): the line offset moved
+(was ~843, now ~820) and the authLen computation now uses safe_add_size_t.
+Context updated accordingly; the inserted block is unchanged.
+
+diff --git a/libs/azure-c-shared-utility/patches/002-enable-negotiate-proxy-auth.patch b/libs/azure-c-shared-utility/patches/002-enable-negotiate-proxy-auth.patch
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/libs/azure-c-shared-utility/patches/002-enable-negotiate-proxy-auth.patch
+@@ -0,0 +1,15 @@
++--- a/adapters/httpapi_curl.c
+++++ b/adapters/httpapi_curl.c
++@@ -817,6 +817,12 @@
++                 }
++                 else
++                 {
+++                    /* Negotiate (Kerberos/SPNEGO) proxy auth, falling back to Basic.
+++                     * Curl picks whichever scheme the proxy advertises in 407 responses.
+++                     * Ignore CURLE_NOT_BUILT_IN: if curl lacks GSSAPI, Basic still works. */
+++                    (void)curl_easy_setopt(httpHandleData->curl, CURLOPT_PROXYAUTH,
+++                                           CURLAUTH_NEGOTIATE | CURLAUTH_BASIC);
+++
++                     if (proxy_data->username != NULL && proxy_data->password != NULL)
++                     {
++                         size_t authLen = safe_add_size_t(strlen(proxy_data->username), strlen(proxy_data->password));

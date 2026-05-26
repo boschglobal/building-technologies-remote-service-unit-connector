@@ -100,7 +100,15 @@ IotHubOrNull::IotHubOrNull( std::shared_ptr<Configuration> config ) : _impl( std
 
     try
     {
-        _impl->Proxy.Port = static_cast<uint16_t>( config->GetIntValue( "Proxy_Port" ) );
+        const int32_t port = config->GetIntValue( "Proxy_Port" );
+        if ( port >= 1 && port <= 65535 )
+        {
+            _impl->Proxy.Port = static_cast<uint16_t>( port );
+        }
+        else if ( port != 0 )
+        {
+            spdlog::warn( "Proxy_Port {} out of range (1..65535); proxy disabled.", port );
+        }
     }
     catch ( const std::exception& e )
     {

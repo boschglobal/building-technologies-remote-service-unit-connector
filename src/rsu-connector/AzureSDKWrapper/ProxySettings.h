@@ -13,7 +13,7 @@
 /// @brief Proxy authentication scheme.
 ///
 /// `Basic` keeps the historical behaviour: `Proxy_Username`/`Proxy_Password` are sent as
-/// `Authorization: Basic` (or no header at all when both are empty).
+/// `Proxy-Authorization: Basic` (or no header at all when both are empty).
 /// `Negotiate` activates SPNEGO/Kerberos via libcurl's GSSAPI support; the username/password
 /// remain available as a Basic fallback if the proxy doesn't offer Negotiate.
 enum class ProxyAuthMethod

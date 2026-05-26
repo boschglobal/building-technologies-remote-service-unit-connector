@@ -18,6 +18,32 @@
 #include <memory>
 #include <stdexcept>
 
+struct EnvVarGuard
+{
+    explicit EnvVarGuard( const char* name ) : Name( name )
+    {
+        if ( const char* value = getenv( Name ) )
+        {
+            HadValue = true;
+            Saved    = value;
+        }
+        unsetenv( Name );
+    }
+    ~EnvVarGuard()
+    {
+        if ( HadValue )
+            setenv( Name, Saved.c_str(), 1 );
+        else
+            unsetenv( Name );
+    }
+    EnvVarGuard( const EnvVarGuard& )            = delete;
+    EnvVarGuard& operator=( const EnvVarGuard& ) = delete;
+
+    const char* Name;
+    std::string Saved;
+    bool HadValue{ false };
+};
+
 struct MockConfiguration
 {
     MockConfiguration() = default;
@@ -542,10 +568,42 @@ TEST_CASE( "iotnull - proxy host without valid port stays disabled" )
     CHECK_FALSE( MockIotHubFactory::DpsProxy.Enabled() );
 }
 
+TEST_CASE( "iotnull - negative proxy port is rejected and proxy stays disabled" )
+{
+    auto config{ std::make_shared<MockConfiguration>() };
+    config->Strings["DPS_IDSCOPE"]               = "dummy";
+    config->Strings["DPS_RegistrationId"]        = "dummyRegId";
+    config->Strings["DPS_SharedAccessSignature"] = "dummySAS";
+    config->Strings["Proxy_Host"]                = "proxy.example.com";
+    config->Ints["Proxy_Port"]                   = -1;
+    MockIotHubFactory::DpsProxy                  = ProxySettings{};
+
+    IotHubOrNull iothub{ config };
+    CHECK( MockIotHubFactory::DpsProxy.Host == "proxy.example.com" );
+    CHECK( MockIotHubFactory::DpsProxy.Port == 0 );
+    CHECK_FALSE( MockIotHubFactory::DpsProxy.Enabled() );
+}
+
+TEST_CASE( "iotnull - proxy port above 65535 is rejected and proxy stays disabled" )
+{
+    auto config{ std::make_shared<MockConfiguration>() };
+    config->Strings["DPS_IDSCOPE"]               = "dummy";
+    config->Strings["DPS_RegistrationId"]        = "dummyRegId";
+    config->Strings["DPS_SharedAccessSignature"] = "dummySAS";
+    config->Strings["Proxy_Host"]                = "proxy.example.com";
+    config->Ints["Proxy_Port"]                   = 70000;
+    MockIotHubFactory::DpsProxy                  = ProxySettings{};
+
+    IotHubOrNull iothub{ config };
+    CHECK( MockIotHubFactory::DpsProxy.Host == "proxy.example.com" );
+    CHECK( MockIotHubFactory::DpsProxy.Port == 0 );
+    CHECK_FALSE( MockIotHubFactory::DpsProxy.Enabled() );
+}
+
 TEST_CASE( "iotnull - proxy with negotiate auth and keytab exports KRB5 env vars" )
 {
-    unsetenv( "KRB5_CLIENT_KTNAME" );
-    unsetenv( "KRB5CCNAME" );
+    EnvVarGuard ktnameGuard{ "KRB5_CLIENT_KTNAME" };
+    EnvVarGuard ccnameGuard{ "KRB5CCNAME" };
 
     auto config{ std::make_shared<MockConfiguration>() };
     config->Strings["DPS_IDSCOPE"]               = "dummy";
@@ -570,15 +628,12 @@ TEST_CASE( "iotnull - proxy with negotiate auth and keytab exports KRB5 env vars
     const char* ccname = getenv( "KRB5CCNAME" );
     REQUIRE( ccname != nullptr );
     CHECK( std::string( ccname ) == "FILE:/tmp/rsu-connector-krb5cc" );
-
-    unsetenv( "KRB5_CLIENT_KTNAME" );
-    unsetenv( "KRB5CCNAME" );
 }
 
 TEST_CASE( "iotnull - proxy with negotiate auth and no keytab leaves env vars unset" )
 {
-    unsetenv( "KRB5_CLIENT_KTNAME" );
-    unsetenv( "KRB5CCNAME" );
+    EnvVarGuard ktnameGuard{ "KRB5_CLIENT_KTNAME" };
+    EnvVarGuard ccnameGuard{ "KRB5CCNAME" };
 
     auto config{ std::make_shared<MockConfiguration>() };
     config->Strings["DPS_IDSCOPE"]               = "dummy";
@@ -599,8 +654,8 @@ TEST_CASE( "iotnull - proxy with negotiate auth and no keytab leaves env vars un
 
 TEST_CASE( "iotnull - proxy with basic auth (default) leaves env vars unset" )
 {
-    unsetenv( "KRB5_CLIENT_KTNAME" );
-    unsetenv( "KRB5CCNAME" );
+    EnvVarGuard ktnameGuard{ "KRB5_CLIENT_KTNAME" };
+    EnvVarGuard ccnameGuard{ "KRB5CCNAME" };
 
     auto config{ std::make_shared<MockConfiguration>() };
     config->Strings["DPS_IDSCOPE"]               = "dummy";

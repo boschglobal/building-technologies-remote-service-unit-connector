@@ -15,10 +15,12 @@ azure-iot-sdk-c tree at tag LTS_03_2025:
 parson, macro-utils-c, and umock-c submodule SHAs are unchanged at this LTS
 and are not touched here.
 
-PKG_MIRROR_HASH is set to `skip` for each bumped package. OpenWrt accepts
-`skip` to bypass mirror-tarball hash verification — fine for in-house builds.
-Before merging, replace each `skip` with the real sha256 reported by the
-first successful `make package/feeds/rsu/<pkg>/download V=s` run.
+PKG_MIRROR_HASH on each bumped Makefile is the sha256 of OpenWrt's
+deterministic git tarball at the pinned PKG_SOURCE_VERSION, captured from
+the first successful `make package/feeds/rsu/<pkg>/download V=s` run
+against this branch. OpenWrt's git-proto dl path (`scripts/download.pl`
++ git tar) sorts entries and fixes timestamps, so the same SHA yields
+the same tarball and the same hash in every build environment.
 
 Companion patches that need attention on this bump:
 
@@ -49,7 +51,7 @@ diff --git a/libs/azure-iot-sdk-c/Makefile b/libs/azure-iot-sdk-c/Makefile
 -PKG_SOURCE_VERSION:=17b7d536485b5e69555d76074803495b7b18e7ab
 -PKG_MIRROR_HASH:=f49744038a4fbec7c528fe8ab80df4abe775128d8b97a75ca5572a5debf09109
 +PKG_SOURCE_VERSION:=LTS_03_2025
-+PKG_MIRROR_HASH:=skip
++PKG_MIRROR_HASH:=0108422f059a186d3164be762de6854426a3a20af2cf8cdf7d76d18dba8b4173
 
  PKG_MAINTAINER:=Florian Eckert <fe@dev.tdt.de>
  PKG_LICENSE:=MIT
@@ -70,7 +72,7 @@ diff --git a/libs/azure-c-shared-utility/Makefile b/libs/azure-c-shared-utility/
 -PKG_SOURCE_VERSION:=ef6ebf91a2e3530275050f0f789bab9f744c45e9
 -PKG_MIRROR_HASH:=6e49bdcacb3abd04cde91bd7b560e1a92fab8632e0399f0815de478d6eb2ccd9
 +PKG_SOURCE_VERSION:=772a4f8bc338140b4a0f404cf9c344283c5c937f
-+PKG_MIRROR_HASH:=skip
++PKG_MIRROR_HASH:=55a65a29f6ffd4b0a2cbfe13c0eb0e5bea1ba65a0ce82aa515d6c33bbdc3f2b8
 
  PKG_MAINTAINER:=Florian Eckert <fe@dev.tdt.de>
  PKG_LICENSE:=MIT
@@ -106,7 +108,7 @@ diff --git a/libs/azure-uamqp-c/Makefile b/libs/azure-uamqp-c/Makefile
 -PKG_SOURCE_VERSION:=bf3f62e8a2359e2a6b363502097bfcd87c1dff47
 -PKG_MIRROR_HASH:=775a9c756ab5ef7273e896ff8e54f8312101116ef17797d64dbc4d504290e5b6
 +PKG_SOURCE_VERSION:=6bb9accbbc036ed5ef1df7467760762c99a7094b
-+PKG_MIRROR_HASH:=skip
++PKG_MIRROR_HASH:=ebdda7c1132a478249faa2dac0a1c59d68b2bdb3d8bdf814fc9a0f81323c7d0b
 
  PKG_MAINTAINER:=Florian Eckert <fe@dev.tdt.de>
  PKG_LICENSE:=MIT
@@ -127,7 +129,7 @@ diff --git a/libs/azure-umqtt-c/Makefile b/libs/azure-umqtt-c/Makefile
 -PKG_SOURCE_VERSION:=0c369ee8b046906d2666c9c850be1b313012e4a7
 -PKG_MIRROR_HASH:=c6d9cfe8bb3c7db7dc7e867bb2a0ac5d27303785dc335eeb6e5c834ced3ebb8e
 +PKG_SOURCE_VERSION:=d08d530fc3ae3f60d3f750fab6629a5b7839f754
-+PKG_MIRROR_HASH:=skip
++PKG_MIRROR_HASH:=38bec267c1b3e85e16cad075136f9047ef66c6a2b94462c4e0e479c59f49c769
 
  PKG_MAINTAINER:=Florian Eckert <fe@dev.tdt.de>
  PKG_LICENSE:=MIT
@@ -161,7 +163,7 @@ diff --git a/libs/azure-uhttp-c/Makefile b/libs/azure-uhttp-c/Makefile
 -PKG_SOURCE_VERSION:=d286589762e59f0ad2f92f7c5a58f7979b5ab082
 -PKG_MIRROR_HASH:=9734277922dd9961fc7bd69e4844ddc7669eec675efab78f9f5aa8af19247006
 +PKG_SOURCE_VERSION:=01dc7139d3da3141aa2017dff927db1dbbe86e49
-+PKG_MIRROR_HASH:=skip
++PKG_MIRROR_HASH:=39480a809d83d66b99c7deb34f2af6c4e56d79fe9c6fb75f6c57c68071cdd4d1
 
  PKG_MAINTAINER:=Florian Eckert <fe@dev.tdt.de>
  PKG_LICENSE:=MIT

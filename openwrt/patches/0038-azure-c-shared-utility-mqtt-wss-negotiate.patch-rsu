@@ -55,7 +55,7 @@ new file mode 100644
 index 0000000..2222222
 --- /dev/null
 +++ b/libs/azure-c-shared-utility/patches/003-mqtt-wss-negotiate-proxy-auth.patch
-@@ -0,0 +1,567 @@
+@@ -0,0 +1,578 @@
 +Add Kerberos/SPNEGO proxy authentication to http_proxy_io for the rsu build.
 +
 +The HTTP CONNECT proxy IO (used by MQTT-over-WSS) writes the CONNECT line
@@ -163,7 +163,7 @@ index 0000000..2222222
 +         free(http_proxy_io_instance->hostname);
 +         free(http_proxy_io_instance->proxy_hostname);
 +         free(http_proxy_io_instance->username);
-+@@ -228,6 +261,417 @@
++@@ -228,6 +261,428 @@
 +     }
 + }
 + 
@@ -285,64 +285,75 @@ index 0000000..2222222
 ++static int extract_negotiate_challenge(const char* response, char** out_token)
 ++{
 ++    static const char header_name[] = "Proxy-Authenticate:";
-++    const char* cursor = response;
+++    const size_t header_name_len = sizeof(header_name) - 1;
+++    const char* headers_end;
+++    const char* line;
 ++    *out_token = NULL;
-++    while ((cursor = strstr(cursor, header_name)) != NULL)
+++    headers_end = strstr(response, "\r\n\r\n");
+++    if (headers_end == NULL)
 ++    {
-++        const char* value = cursor + sizeof(header_name) - 1;
-++        const char* line_end;
-++        const char* scheme;
-++        const char* token_start;
-++        const char* token_end;
-++        size_t token_len;
-++
-++        while (*value == ' ' || *value == '\t')
+++        return __LINE__;
+++    }
+++    line = strstr(response, "\r\n");
+++    if ((line == NULL) || (line >= headers_end))
+++    {
+++        return __LINE__;
+++    }
+++    line += 2;
+++    while (line < headers_end)
+++    {
+++        const char* next_line = strstr(line, "\r\n");
+++        size_t line_len;
+++        if ((next_line == NULL) || (next_line > headers_end))
 ++        {
-++            value++;
+++            next_line = headers_end;
 ++        }
-++        line_end = strstr(value, "\r\n");
-++        if (line_end == NULL)
+++        line_len = (size_t)(next_line - line);
+++        if (has_prefix_ci(line, line_len, header_name, header_name_len))
 ++        {
-++            line_end = value + strlen(value);
+++            const char* value = line + header_name_len;
+++            const char* line_end = next_line;
+++            const char* scheme;
+++            const char* token_start;
+++            const char* token_end;
+++            size_t scheme_len;
+++            size_t token_len;
+++            while ((value < line_end) && (*value == ' ' || *value == '\t'))
+++            {
+++                value++;
+++            }
+++            scheme = value;
+++            scheme_len = (size_t)(line_end - scheme);
+++            /* Match "Negotiate" case-insensitively as a whole word. */
+++            if ((scheme_len >= 9) &&
+++                has_prefix_ci(scheme, scheme_len, "Negotiate", 9) &&
+++                ((scheme_len == 9) || (scheme[9] == ' ') || (scheme[9] == '\t')))
+++            {
+++                token_start = scheme + 9;
+++                while ((token_start < line_end) && (*token_start == ' ' || *token_start == '\t'))
+++                {
+++                    token_start++;
+++                }
+++                token_end = line_end;
+++                while ((token_end > token_start) && ((*(token_end - 1) == ' ') || (*(token_end - 1) == '\t')))
+++                {
+++                    token_end--;
+++                }
+++                token_len = (size_t)(token_end - token_start);
+++                *out_token = (char*)malloc(token_len + 1);
+++                if (*out_token == NULL)
+++                {
+++                    return __LINE__;
+++                }
+++                if (token_len > 0)
+++                {
+++                    memcpy(*out_token, token_start, token_len);
+++                }
+++                (*out_token)[token_len] = '\0';
+++                return 0;
+++            }
 ++        }
-++        scheme = value;
-++        /* Match "Negotiate" case-insensitively as a whole word. */
-++        if (((line_end - scheme) >= 9) &&
-++            (tolower((unsigned char)scheme[0]) == 'n') &&
-++            (tolower((unsigned char)scheme[1]) == 'e') &&
-++            (tolower((unsigned char)scheme[2]) == 'g') &&
-++            (tolower((unsigned char)scheme[3]) == 'o') &&
-++            (tolower((unsigned char)scheme[4]) == 't') &&
-++            (tolower((unsigned char)scheme[5]) == 'i') &&
-++            (tolower((unsigned char)scheme[6]) == 'a') &&
-++            (tolower((unsigned char)scheme[7]) == 't') &&
-++            (tolower((unsigned char)scheme[8]) == 'e') &&
-++            (((line_end - scheme) == 9) || (scheme[9] == ' ') || (scheme[9] == '\t')))
-++        {
-++            token_start = scheme + 9;
-++            while ((token_start < line_end) && (*token_start == ' ' || *token_start == '\t'))
-++            {
-++                token_start++;
-++            }
-++            token_end = line_end;
-++            while ((token_end > token_start) && ((*(token_end - 1) == ' ') || (*(token_end - 1) == '\t')))
-++            {
-++                token_end--;
-++            }
-++            token_len = (size_t)(token_end - token_start);
-++            *out_token = (char*)malloc(token_len + 1);
-++            if (*out_token == NULL)
-++            {
-++                return __LINE__;
-++            }
-++            if (token_len > 0)
-++            {
-++                memcpy(*out_token, token_start, token_len);
-++            }
-++            (*out_token)[token_len] = '\0';
-++            return 0;
-++        }
-++        cursor = line_end;
+++        line = next_line + 2;
 ++    }
 ++    return __LINE__;
 ++}
@@ -581,7 +592,7 @@ index 0000000..2222222
 + static void indicate_open_complete_error_and_close(HTTP_PROXY_IO_INSTANCE* http_proxy_io_instance)
 + {
 +     http_proxy_io_instance->http_proxy_io_state = HTTP_PROXY_IO_STATE_CLOSED;
-+@@ -630,6 +1074,23 @@
++@@ -630,6 +1085,23 @@
 + 
 +         case HTTP_PROXY_IO_STATE_WAITING_FOR_CONNECT_RESPONSE:
 +         {
@@ -605,7 +616,7 @@ index 0000000..2222222
 +             /* Codes_SRS_HTTP_PROXY_IO_01_065: [ When bytes are received and the response to the CONNECT request was not yet received, the bytes shall be accumulated until a double new-line is detected. ]*/
 +             unsigned char* new_receive_buffer = (unsigned char*)realloc(http_proxy_io_instance->receive_buffer, http_proxy_io_instance->receive_buffer_size + size + 1);
 +             if (new_receive_buffer == NULL)
-+@@ -670,6 +1131,17 @@
++@@ -670,6 +1142,17 @@
 +                     /* Codes_SRS_HTTP_PROXY_IO_01_090: [ Any successful (2xx) response to a CONNECT request indicates that the proxy has established a connection to the requested host and port, and has switched to tunneling the current connection to that server connection. ]*/
 +                     else if ((status_code < 200) || (status_code > 299))
 +                     {

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 TOOLCHAIN_LIB=/openwrt/staging_dir/toolchain-x86_64_gcc-8.4.0_musl/lib/
 TARGET_USR_LIB=/openwrt/staging_dir/target-x86_64_musl/usr/lib/
-mkdir -p buildTest
+mkdir -p buildTest/unittest
 cd buildTest
 cat << EOT > valid_config.json
 {

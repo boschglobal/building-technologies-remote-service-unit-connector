@@ -16,6 +16,7 @@
 #include <iothub_device_client.h>
 #include <iothub_device_client_ll.h>
 #include <iothubtransportmqtt.h>
+#include <iothubtransportmqtt_websockets.h>
 #include <iothub_client_options.h>
 #include <azure_c_shared_utility/shared_util_options.h>
 #include <spdlog/spdlog.h>
@@ -58,8 +59,8 @@ static IOTHUBMESSAGE_DISPOSITION_RESULT_TAG ReactionToDisposition( MessageReacti
 
 struct IotHubClientWrapper::IotHubClientWrapperImpl
 {
-    IotHubClientWrapperImpl( const std::string& iotHubUri, const std::string& deviceId );
-    IotHubClientWrapperImpl( const std::string& connectionString );
+    IotHubClientWrapperImpl( const std::string& iotHubUri, const std::string& deviceId, const ProxySettings& proxy );
+    IotHubClientWrapperImpl( const std::string& connectionString, const ProxySettings& proxy );
     ~IotHubClientWrapperImpl();
 
     void SetLogTraceOption( bool value );
@@ -117,6 +118,7 @@ struct IotHubClientWrapper::IotHubClientWrapperImpl
     void SetupCallbacks();
 
     IOTHUB_DEVICE_CLIENT_HANDLE IotHubClientHandle{ NULL };
+    ProxySettings Proxy;
 
     // used by SendMessage()
     static std::mutex SendMessageLock;
@@ -139,14 +141,17 @@ std::mutex IotHubClientWrapper::IotHubClientWrapperImpl::SendMessageLock;
 std::vector<std::shared_ptr<IMessageLifeTimeTracker>> IotHubClientWrapper::IotHubClientWrapperImpl::SendMessageTrackers;
 
 IotHubClientWrapper::IotHubClientWrapperImpl::IotHubClientWrapperImpl( const std::string& iotHubUri,
-                                                                       const std::string& deviceId )
+                                                                       const std::string& deviceId,
+                                                                       const ProxySettings& proxy )
+    : Proxy( proxy )
 {
     if ( iotHubUri.empty() || deviceId.empty() )
     {
         throw std::invalid_argument( "Connection String" );
     }
 
-    IotHubClientHandle = IoTHubDeviceClient_CreateFromDeviceAuth( iotHubUri.c_str(), deviceId.c_str(), MQTT_Protocol );
+    auto protocol      = Proxy.Enabled() ? MQTT_WebSocket_Protocol : MQTT_Protocol;
+    IotHubClientHandle = IoTHubDeviceClient_CreateFromDeviceAuth( iotHubUri.c_str(), deviceId.c_str(), protocol );
     if ( !IotHubClientHandle )
     {
         throw std::runtime_error( "Create client from connection string failed." );
@@ -156,14 +161,17 @@ IotHubClientWrapper::IotHubClientWrapperImpl::IotHubClientWrapperImpl( const std
     spdlog::debug( "IotHubClientWrapper" );
 }
 
-IotHubClientWrapper::IotHubClientWrapperImpl::IotHubClientWrapperImpl( const std::string& connectionString )
+IotHubClientWrapper::IotHubClientWrapperImpl::IotHubClientWrapperImpl( const std::string& connectionString,
+                                                                       const ProxySettings& proxy )
+    : Proxy( proxy )
 {
     if ( connectionString.empty() )
     {
         throw std::invalid_argument( "Connection String" );
     }
 
-    IotHubClientHandle = IoTHubDeviceClient_CreateFromConnectionString( connectionString.c_str(), MQTT_Protocol );
+    auto protocol      = Proxy.Enabled() ? MQTT_WebSocket_Protocol : MQTT_Protocol;
+    IotHubClientHandle = IoTHubDeviceClient_CreateFromConnectionString( connectionString.c_str(), protocol );
     if ( !IotHubClientHandle )
     {
         throw std::runtime_error( "Create client from connection string failed." );
@@ -309,6 +317,28 @@ void IotHubClientWrapper::IotHubClientWrapperImpl::SetupOptions()
         // this error is not fatal
     }
 
+    // OPTION_HTTP_PROXY must be set before any option that forces the MQTT transport to create its
+    // underlying xio (e.g. OPTION_OPENSSL_CIPHER_SUITE). Otherwise SetOption(OPTION_HTTP_PROXY)
+    // fails with "Cannot set proxy option once the underlying IO is created".
+    if ( Proxy.Enabled() )
+    {
+        HTTP_PROXY_OPTIONS opts = {};
+        opts.host_address       = Proxy.Host.c_str();
+        opts.port               = Proxy.Port;
+        opts.username           = Proxy.Username.empty() ? nullptr : Proxy.Username.c_str();
+        opts.password           = Proxy.Password.empty() ? nullptr : Proxy.Password.c_str();
+
+        if ( IoTHubDeviceClient_SetOption( IotHubClientHandle, OPTION_HTTP_PROXY, &opts ) != IOTHUB_CLIENT_OK )
+        {
+            throw std::runtime_error( "Setting HTTP proxy on IoT Hub client failed." );
+        }
+        const char* authName = ( Proxy.AuthMethod == ProxyAuthMethod::Negotiate ) ? "negotiate" : "basic";
+        spdlog::info( "IoT Hub client using MQTT-over-WSS via proxy {}:{} (auth={})",
+                      Proxy.Host,
+                      Proxy.Port,
+                      authName );
+    }
+
     // source: https://www.openssl.org/docs/man1.0.2/man1/ciphers.html for TLS1.2 excluding CBC ciphers
     const char* ciphers = "ECDH-ECDSA-AES128-GCM-SHA256:"
                           "ECDH-ECDSA-AES256-GCM-SHA384:"
@@ -324,7 +354,7 @@ void IotHubClientWrapper::IotHubClientWrapperImpl::SetupOptions()
                           "DHE-RSA-AES256-GCM-SHA384:"
                           "ECDH-RSA-AES128-GCM-SHA256:"
                           "ECDH-RSA-AES256-GCM-SHA384";
-    auto retValSsl = IoTHubDeviceClient_SetOption( IotHubClientHandle, OPTION_OPENSSL_CIPHER_SUITE, ciphers );
+    auto retValSsl      = IoTHubDeviceClient_SetOption( IotHubClientHandle, OPTION_OPENSSL_CIPHER_SUITE, ciphers );
     if ( IOTHUB_CLIENT_OK != retValSsl )
     {
         spdlog::warn( "Set SSL ciphers failed {}", retValSsl );
@@ -528,14 +558,16 @@ void IotHubClientWrapper::IotHubClientWrapperImpl::sReportedStateCallback( int s
     spdlog::info( "Send reported state response {}", statusCode );
 }
 
-IotHubClientWrapper::IotHubClientWrapper( const std::string& iotHubUri, const std::string& deviceId )
-    : _impl( std::make_shared<IotHubClientWrapperImpl>( iotHubUri, deviceId ) )
+IotHubClientWrapper::IotHubClientWrapper( const std::string& iotHubUri,
+                                          const std::string& deviceId,
+                                          const ProxySettings& proxy )
+    : _impl( std::make_shared<IotHubClientWrapperImpl>( iotHubUri, deviceId, proxy ) )
 {
     spdlog::debug( "Created IotHub client." );
 }
 
-IotHubClientWrapper::IotHubClientWrapper( const std::string& connectionString )
-    : _impl( std::make_shared<IotHubClientWrapperImpl>( connectionString ) )
+IotHubClientWrapper::IotHubClientWrapper( const std::string& connectionString, const ProxySettings& proxy )
+    : _impl( std::make_shared<IotHubClientWrapperImpl>( connectionString, proxy ) )
 {
     spdlog::debug( "Created IotHub client." );
 }

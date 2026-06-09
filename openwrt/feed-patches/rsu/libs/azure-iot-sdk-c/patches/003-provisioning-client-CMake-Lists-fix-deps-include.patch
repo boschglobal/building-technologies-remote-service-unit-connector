@@ -1,0 +1,21 @@
+# 003-provisioning-client-CMake-Lists-fix-deps-include.patch
+#
+# The upstream rsu-feed patch removes `add_subdirectory(./deps)` from
+# provisioning_client/CMakeLists.txt. At LTS_03_2025 upstream rewrote the path
+# to `add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/deps)`, so the original
+# patch's pre-image no longer matches ("Hunk #1 FAILED at 8"). This file is
+# the refreshed patch targeting the new form. The intent is unchanged: the
+# package Makefile rm's $(PKG_BUILD_DIR)/provisioning_client/deps in
+# Build/Prepare (it pulls bundled crypto/HSM deps that we do not need with
+# hsm_type_custom), so the add_subdirectory call has to go.
+--- a/provisioning_client/CMakeLists.txt
++++ b/provisioning_client/CMakeLists.txt
+@@ -8,8 +8,6 @@ compileAsC99()
+ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_PROV_MODULE")
+ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DUSE_PROV_MODULE")
+
+-add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/deps)
+-
+ set(provisioning_libs)
+ set(provisioning_headers)
+

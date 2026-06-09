@@ -6,9 +6,9 @@ RUN apt-get upgrade -y
 
 # Upgrade cmake to latest version
 RUN apt purge --auto-remove cmake
-RUN apt-get install -y software-properties-common
-RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 42D5A192B819C5DA
-RUN echo 'deb https://apt.kitware.com/ubuntu/ bionic main' | tee /etc/apt/sources.list.d/kitware.list > /dev/null
+RUN apt-get update -y && apt-get install -y software-properties-common wget gnupg
+RUN wget -qO - https://apt.kitware.com/keys/kitware-archive-latest.asc | gpg --dearmor -o /usr/share/keyrings/kitware-archive-keyring.gpg
+RUN echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ bionic main' | tee /etc/apt/sources.list.d/kitware.list > /dev/null
 RUN apt-get update -y
 
 # Install required dependencies

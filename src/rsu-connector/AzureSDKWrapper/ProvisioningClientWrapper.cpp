@@ -18,6 +18,7 @@
 #include <azure_prov_client/prov_security_factory.h>
 #include <azure_prov_client/prov_transport_amqp_client.h>
 #include <azure_prov_client/prov_transport_http_client.h>
+#include <azure_c_shared_utility/shared_util_options.h>
 #include <iothub.h>
 
 #include <spdlog/spdlog.h>
@@ -32,7 +33,7 @@ struct ProvisioningClientWrapper::ProvisioningClientWrapperImpl
     ProvisioningClientWrapperImpl() = default;
     ~ProvisioningClientWrapperImpl();
 
-    void Init( const string& scope );
+    void Init( const string& scope, const ProxySettings& proxy );
     bool Register();
 
     static void sDeviceCallback( PROV_DEVICE_RESULT result,
@@ -87,7 +88,7 @@ ProvisioningClientWrapper::ProvisioningClientWrapperImpl::~ProvisioningClientWra
     }
 }
 
-void ProvisioningClientWrapper::ProvisioningClientWrapperImpl::Init( const string& scope )
+void ProvisioningClientWrapper::ProvisioningClientWrapperImpl::Init( const string& scope, const ProxySettings& proxy )
 {
     if ( scope.empty() )
     {
@@ -100,6 +101,22 @@ void ProvisioningClientWrapper::ProvisioningClientWrapperImpl::Init( const strin
     if ( !ProvisioningDeviceHandle )
     {
         throw runtime_error( "Could not create provisioning client" );
+    }
+
+    if ( proxy.Enabled() )
+    {
+        HTTP_PROXY_OPTIONS opts = {};
+        opts.host_address       = proxy.Host.c_str();
+        opts.port               = proxy.Port;
+        opts.username           = proxy.Username.empty() ? nullptr : proxy.Username.c_str();
+        opts.password           = proxy.Password.empty() ? nullptr : proxy.Password.c_str();
+
+        if ( Prov_Device_SetOption( ProvisioningDeviceHandle, OPTION_HTTP_PROXY, &opts ) != PROV_DEVICE_RESULT_OK )
+        {
+            throw runtime_error( "Setting HTTP proxy on DPS client failed." );
+        }
+        const char* authName = ( proxy.AuthMethod == ProxyAuthMethod::Negotiate ) ? "negotiate" : "basic";
+        spdlog::info( "DPS client using proxy {}:{} (auth={})", proxy.Host, proxy.Port, authName );
     }
 }
 
@@ -119,10 +136,10 @@ bool ProvisioningClientWrapper::ProvisioningClientWrapperImpl::Register()
     return !HasError;
 }
 
-ProvisioningClientWrapper::ProvisioningClientWrapper( const string& scope )
+ProvisioningClientWrapper::ProvisioningClientWrapper( const string& scope, const ProxySettings& proxy )
     : _impl{ make_shared<ProvisioningClientWrapperImpl>() }
 {
-    _impl->Init( scope );
+    _impl->Init( scope, proxy );
 }
 
 bool ProvisioningClientWrapper::Register()

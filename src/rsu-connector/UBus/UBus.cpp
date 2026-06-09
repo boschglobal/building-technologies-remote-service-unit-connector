@@ -73,6 +73,7 @@ bool Ubus::UbusImpl::DeleteRedirect( const std::string& name )
     struct uci_context* uci_ctx;
     struct uci_package* uci_firewall;
     struct uci_section* s;
+    struct uci_section* section_del;
     struct uci_element* e;
     struct uci_ptr ptr = {};
     const char* uci_name;
@@ -93,8 +94,10 @@ bool Ubus::UbusImpl::DeleteRedirect( const std::string& name )
         if ( !uci_name )
             continue;
 
-        if ( name == uci_name )
+        if ( name == uci_name ) {
+            section_del = s;
             valid = true;
+        }
     }
 
     if ( !valid )
@@ -105,7 +108,7 @@ bool Ubus::UbusImpl::DeleteRedirect( const std::string& name )
     }
 
     ptr.p = uci_firewall;
-    ptr.s = s;
+    ptr.s = section_del;
     ptr.o = NULL;
     uci_delete( uci_ctx, &ptr );
 

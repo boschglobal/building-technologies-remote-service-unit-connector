@@ -79,11 +79,10 @@ cp $srcFeeds feeds.conf
 # Update the feeds, throwing away changes
 ./scripts/feeds update -a -f
 
-# Applying patches to packages feed to backport spdlog and libfmt.
-( cd feeds/packages; for f in $patches/*.patch; do patch -p1 < $f; done )
-
-# Applying patches to rsu feed to fix issue with missing -fPIC.
-( cd feeds/rsu; for f in $patches/*.patch-rsu; do patch -p1 < $f; done )
+# Apply our feed-level patches (cpp-base64 FPIC, libcurl GSSAPI, Azure SDK
+# bump to LTS_03_2025, proxy Negotiate auth) and drop any inner patches that
+# have since been merged upstream into the pinned Azure submodules.
+bash $rsuConnectorDir/openwrt/apply-patches.sh
 
 # Update feeds index to pick up patches.
 ./scripts/feeds update -a -i

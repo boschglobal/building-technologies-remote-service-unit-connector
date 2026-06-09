@@ -1,0 +1,21 @@
+# 002-iothub-client-CMake-Lists-fix-build-as-dynamic-uamqp.patch
+#
+# At azure-iot-sdk-c LTS_03_2025 the upstream rsu-feed patch is partially
+# obsolete. Hunk #1 removed `set(iothub_client_libs ${iothub_client_libs} uamqp)`
+# from the `if(build_as_dynamic)` block in iothub_client/CMakeLists.txt;
+# Microsoft merged that removal upstream, so the hunk's pre-image is gone and
+# patch bails with "Hunk #1 FAILED at 331". Hunk #2 (adding
+# target_link_libraries(iothub_client_dll uamqp) to the dynamic library link
+# target) is still required — without it the iothub_client_dll .so does not
+# get libuamqp linked in. This file is the refreshed patch retaining only
+# Hunk #2.
+--- a/iothub_client/CMakeLists.txt
++++ b/iothub_client/CMakeLists.txt
+@@ -432,6 +430,7 @@ if (${build_as_dynamic})
+         target_link_libraries(iothub_client_dll hsm_security_client prov_auth_client)
+     endif()
+     target_link_libraries(iothub_client_dll parson)
++    target_link_libraries(iothub_client_dll uamqp)
+
+     if (${CMAKE_C_COMPILER_ID} STREQUAL "GNU" OR ${CMAKE_C_COMPILER_ID} STREQUAL "Clang")
+         target_link_libraries(iothub_client_dll

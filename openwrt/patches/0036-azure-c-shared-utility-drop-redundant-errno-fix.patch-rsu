@@ -1,0 +1,43 @@
+Drop the rsu feed's azure-c-shared-utility patch 001-fix-redirection-of-error-header.
+
+That patch swapped `#include <sys/errno.h>` for `#include <errno.h>` in
+pal/linux/socket_async_os.h. As of c-utility SHA 772a4f8b (the submodule
+pointer at azure-iot-sdk-c LTS_03_2025), the header is already POSIX-form
+`<errno.h>` upstream, so the patch's pre-image no longer matches and the
+quilt-style auto-apply fails with "Hunk #1 FAILED at 10".
+
+The accompanying SDK-bump patch (0035-azure-iot-sdk-c-bump-LTS_03_2025) is
+what moves c-utility past this upstream merge, so this drop is paired with
+that bump.
+
+The patch is emptied (not deleted) because the Dockerfile's apply loop is
+`patch -p1` without `-E`/`--remove-empty-files`. An empty patch file would
+make OpenWrt's per-package quilt loop choke ("Only garbage was found in
+the patch input."), so instead we keep a minimal but valid no-op diff: a
+trailing-newline-only edit on a stable, OS-portable file (LICENSE) that
+reduces to a zero-hunk operation.
+
+Numbered 0036 so it lands right after the 0035 LTS_03_2025 bump (which
+introduces the c-utility SHA at which the upstream fix is already merged)
+and before the 0037/0038 c-utility patches that operate on the bumped tree.
+
+diff --git a/libs/azure-c-shared-utility/patches/001-fix-redirection-of-error-header.patch b/libs/azure-c-shared-utility/patches/001-fix-redirection-of-error-header.patch
+--- a/libs/azure-c-shared-utility/patches/001-fix-redirection-of-error-header.patch
++++ b/libs/azure-c-shared-utility/patches/001-fix-redirection-of-error-header.patch
+@@ -1,11 +1,5 @@
+---- a/pal/linux/socket_async_os.h
+-+++ b/pal/linux/socket_async_os.h
+-@@ -10,7 +10,7 @@
+- #include <sys/select.h>
+- #include <netinet/in.h>
+- #include <netinet/tcp.h>
+--#include <sys/errno.h>
+-+#include <errno.h>
+- #include <fcntl.h>
+- #include <unistd.h>
+- #include <netdb.h>
++No-op: the upstream fix is already merged at c-utility SHA 772a4f8b
++(LTS_03_2025 submodule pointer). This patch file is intentionally a
++stub so it parses as zero hunks under OpenWrt's quilt loop while
++keeping the original filename in place for traceability with the
++rsu feed at SHA fda7cd31.

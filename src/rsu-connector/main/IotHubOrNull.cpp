@@ -5,6 +5,10 @@
 //--- END HEADER ---
 
 #include "IotHubOrNull.h"
+#include <AzureSDKWrapper/ProxySettings.h>
+#include <algorithm>
+#include <cctype>
+#include <cstdlib>
 #include <exception>
 #include <memory>
 #include <fstream>
@@ -17,7 +21,7 @@ struct IotHubOrNull::IotHubOrNullImpl
     std::string SharedAccessSignature;
     std::string CertificateFileName;
     std::string DeviceKeyFileName;
-    ;
+    ProxySettings Proxy;
     std::shared_ptr<IotHubFactory> Factory{ nullptr };
     std::shared_ptr<IIotHubClient> Hub{ nullptr };
     bool MethodHandlerSet{ false };
@@ -85,6 +89,103 @@ IotHubOrNull::IotHubOrNull( std::shared_ptr<Configuration> config ) : _impl( std
         spdlog::info( "Exception while reading DPS_DeviceKeyFile setting: {}", e.what() );
     }
 
+    try
+    {
+        _impl->Proxy.Host = config->GetStringValue( "Proxy_Host" );
+    }
+    catch ( const std::exception& e )
+    {
+        spdlog::info( "Exception while reading Proxy_Host setting: {}", e.what() );
+    }
+
+    try
+    {
+        const int32_t port = config->GetIntValue( "Proxy_Port" );
+        if ( port >= 1 && port <= 65535 )
+        {
+            _impl->Proxy.Port = static_cast<uint16_t>( port );
+        }
+        else if ( port != 0 )
+        {
+            spdlog::warn( "Proxy_Port {} out of range (1..65535); proxy disabled.", port );
+        }
+    }
+    catch ( const std::exception& e )
+    {
+        spdlog::info( "Exception while reading Proxy_Port setting: {}", e.what() );
+    }
+
+    try
+    {
+        _impl->Proxy.Username = config->GetStringValue( "Proxy_Username" );
+    }
+    catch ( const std::exception& )
+    {
+        // optional
+    }
+
+    try
+    {
+        _impl->Proxy.Password = config->GetStringValue( "Proxy_Password" );
+    }
+    catch ( const std::exception& )
+    {
+        // optional
+    }
+
+    try
+    {
+        std::string scheme = config->GetStringValue( "Proxy_AuthMethod" );
+        std::transform( scheme.begin(), scheme.end(), scheme.begin(), []( unsigned char c ) {
+            return static_cast<char>( std::tolower( c ) );
+        } );
+        if ( scheme == "negotiate" || scheme == "kerberos" || scheme == "spnego" )
+        {
+            _impl->Proxy.AuthMethod = ProxyAuthMethod::Negotiate;
+        }
+        else if ( scheme.empty() || scheme == "basic" )
+        {
+            _impl->Proxy.AuthMethod = ProxyAuthMethod::Basic;
+        }
+        else
+        {
+            spdlog::warn( "Unknown Proxy_AuthMethod '{}', falling back to basic.", scheme );
+            _impl->Proxy.AuthMethod = ProxyAuthMethod::Basic;
+        }
+    }
+    catch ( const std::exception& )
+    {
+        // optional, default already Basic
+    }
+
+    try
+    {
+        _impl->Proxy.Keytab = config->GetStringValue( "Proxy_Keytab" );
+    }
+    catch ( const std::exception& )
+    {
+        // optional
+    }
+
+    if ( _impl->Proxy.Enabled() )
+    {
+        const char* authName = ( _impl->Proxy.AuthMethod == ProxyAuthMethod::Negotiate ) ? "negotiate" : "basic";
+        spdlog::info( "Proxy configured: {}:{} (auth={})", _impl->Proxy.Host, _impl->Proxy.Port, authName );
+
+        if ( _impl->Proxy.AuthMethod == ProxyAuthMethod::Negotiate && !_impl->Proxy.Keytab.empty() )
+        {
+            // libcurl/GSSAPI picks up the keytab via this env var; KRB5CCNAME isolates the
+            // ticket cache so the connector doesn't fight other services for /tmp/krb5cc_<uid>.
+            setenv( "KRB5_CLIENT_KTNAME", _impl->Proxy.Keytab.c_str(), 1 );
+            setenv( "KRB5CCNAME", "FILE:/tmp/rsu-connector-krb5cc", 1 );
+            spdlog::info( "Using Kerberos keytab {} for proxy authentication.", _impl->Proxy.Keytab );
+        }
+        else if ( _impl->Proxy.AuthMethod == ProxyAuthMethod::Negotiate )
+        {
+            spdlog::info( "Proxy auth=negotiate without keytab; relying on ambient Kerberos credential cache." );
+        }
+    }
+
     if ( !_impl->RegistrationId.empty() && !_impl->SharedAccessSignature.empty() )
     {
         spdlog::info( "Using shared access signature authentification." );
@@ -119,7 +220,8 @@ IotHubOrNull::IotHubOrNull( std::shared_ptr<Configuration> config ) : _impl( std
     _impl->Factory = std::make_shared<IotHubFactory>( _impl->RegistrationId,
                                                       _impl->SharedAccessSignature,
                                                       _impl->CertificateFileName,
-                                                      _impl->DeviceKeyFileName );
+                                                      _impl->DeviceKeyFileName,
+                                                      _impl->Proxy );
     spdlog::debug( "IotHubOrNull" );
 }
 

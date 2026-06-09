@@ -5015,7 +5015,7 @@ CONFIG_OPENLDAP_DEBUG=y
 # CONFIG_PACKAGE_knxd is not set
 # CONFIG_PACKAGE_kplex is not set
 # CONFIG_PACKAGE_krb5-client is not set
-# CONFIG_PACKAGE_krb5-libs is not set
+CONFIG_PACKAGE_krb5-libs=y
 # CONFIG_PACKAGE_krb5-server is not set
 # CONFIG_PACKAGE_krb5-server-extras is not set
 # CONFIG_PACKAGE_libipset is not set

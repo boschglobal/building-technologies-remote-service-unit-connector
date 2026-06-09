@@ -1,0 +1,32 @@
+Enable GSSAPI/Kerberos support in libcurl for the rsu build.
+
+The OpenWrt curl package does not expose a kconfig switch for GSSAPI and
+defaults to the autoconf `--without-gssapi`. The Negotiate proxy-auth code
+path added in azure-c-shared-utility patch 0031 requires libcurl to be
+built with GSSAPI; without it `CURLAUTH_NEGOTIATE` silently falls back to
+Basic.
+
+Add an unconditional `--with-gssapi="$(STAGING_DIR)/usr"` and pull
+`krb5-libs` into libcurl's DEPENDS so the staging dir always has the
+required headers/libs when libcurl builds.
+
+This patch is applied from `feeds/packages/` (suffix `.patch-packages`).
+
+--- a/net/curl/Makefile
++++ b/net/curl/Makefile
+@@ -94,6 +94,7 @@ define Package/libcurl
+   DEPENDS:= +LIBCURL_WOLFSSL:libwolfssl +LIBCURL_OPENSSL:libopenssl +LIBCURL_GNUTLS:libgnutls +LIBCURL_MBEDTLS:libmbedtls
+   DEPENDS += +LIBCURL_ZLIB:zlib +LIBCURL_ZSTD:libzstd +LIBCURL_THREADED_RESOLVER:libpthread +LIBCURL_LDAP:libopenldap
+   DEPENDS += +LIBCURL_LIBIDN2:libidn2 +LIBCURL_SSH2:libssh2 +LIBCURL_NGHTTP2:libnghttp2 +ca-bundle
++  DEPENDS += +krb5-libs
+   TITLE:=A client-side URL transfer library
+   MENU:=1
+   ABI_VERSION:=4
+@@ -120,6 +121,7 @@ CONFIGURE_ARGS += \
+ 	--without-libpsl \
+ 	--without-zstd \
+ 	--with-ca-bundle=/etc/ssl/certs/ca-certificates.crt \
++	--with-gssapi="$(STAGING_DIR)/usr" \
+ 	\
+ 	$(call autoconf_bool,CONFIG_IPV6,ipv6) \
+ 	\

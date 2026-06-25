@@ -41,7 +41,7 @@ struct ProvisioningClientWrapper::ProvisioningClientWrapperImpl
                                  const char* deviceId,
                                  void* userContextCallback )
     {
-        spdlog::info( "Device callback result {} hubUrl {} device id {}", result, iotHubUri, deviceId );
+        spdlog::info( "Device callback result {} hubUrl {} device id {}", static_cast<int>(result), iotHubUri, deviceId );
 
         if ( !userContextCallback )
         {
@@ -67,7 +67,7 @@ struct ProvisioningClientWrapper::ProvisioningClientWrapperImpl
 
     static void sStatusCallback( PROV_DEVICE_REG_STATUS status, void* userContextCallback )
     {
-        spdlog::info( "Status callback {}", status );
+        spdlog::info( "Status callback {}", static_cast<int>(status) );
     }
 
     PROV_DEVICE_HANDLE ProvisioningDeviceHandle{ NULL };
@@ -125,7 +125,7 @@ bool ProvisioningClientWrapper::ProvisioningClientWrapperImpl::Register()
     auto result = Prov_Device_Register_Device( ProvisioningDeviceHandle, sDeviceCallback, this, sStatusCallback, this );
     if ( result != PROV_DEVICE_RESULT_OK )
     {
-        spdlog::error( "Registering device failed: {}", result );
+        spdlog::error( "Registering device failed: {}", static_cast<int>(result) );
         return false;
     }
 

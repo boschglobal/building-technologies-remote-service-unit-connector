@@ -60,13 +60,8 @@ static IOTHUBMESSAGE_DISPOSITION_RESULT_TAG ReactionToDisposition( MessageReacti
 
 struct IotHubClientWrapper::IotHubClientWrapperImpl
 {
-<<<<<<< HEAD
-    IotHubClientWrapperImpl( const std::string& iotHubUri, const std::string& deviceId, const ProxySettings& proxy );
-    IotHubClientWrapperImpl( const std::string& connectionString, const ProxySettings& proxy );
-=======
-    IotHubClientWrapperImpl( const std::string& iotHubUri, const std::string& deviceId, const std::string& statusFile);
-    IotHubClientWrapperImpl( const std::string& connectionString, const std::string& statusFile);
->>>>>>> fork/pr/20231214-add-status-file
+    IotHubClientWrapperImpl( const std::string& iotHubUri, const std::string& deviceId, const std::string& statusFile, const ProxySettings& proxy );
+    IotHubClientWrapperImpl( const std::string& connectionString, const std::string& statusFile, const ProxySettings& proxy );
     ~IotHubClientWrapperImpl();
 
     void SetLogTraceOption( bool value );
@@ -196,26 +191,19 @@ std::vector<std::shared_ptr<IMessageLifeTimeTracker>> IotHubClientWrapper::IotHu
 
 IotHubClientWrapper::IotHubClientWrapperImpl::IotHubClientWrapperImpl( const std::string& iotHubUri,
                                                                        const std::string& deviceId,
-<<<<<<< HEAD
+                                                                       const std::string& statusFile,
                                                                        const ProxySettings& proxy )
     : Proxy( proxy )
-=======
-                                                                       const std::string& statusFile )
->>>>>>> fork/pr/20231214-add-status-file
 {
     if ( iotHubUri.empty() || deviceId.empty() )
     {
         throw std::invalid_argument( "Connection String" );
     }
 
-<<<<<<< HEAD
-    auto protocol      = Proxy.Enabled() ? MQTT_WebSocket_Protocol : MQTT_Protocol;
-    IotHubClientHandle = IoTHubDeviceClient_CreateFromDeviceAuth( iotHubUri.c_str(), deviceId.c_str(), protocol );
-=======
     statusFileName = statusFile;
 
-    IotHubClientHandle = IoTHubDeviceClient_CreateFromDeviceAuth( iotHubUri.c_str(), deviceId.c_str(), MQTT_Protocol );
->>>>>>> fork/pr/20231214-add-status-file
+    auto protocol      = Proxy.Enabled() ? MQTT_WebSocket_Protocol : MQTT_Protocol;
+    IotHubClientHandle = IoTHubDeviceClient_CreateFromDeviceAuth( iotHubUri.c_str(), deviceId.c_str(), protocol );
     if ( !IotHubClientHandle )
     {
         throw std::runtime_error( "Create client from connection string failed." );
@@ -225,27 +213,20 @@ IotHubClientWrapper::IotHubClientWrapperImpl::IotHubClientWrapperImpl( const std
     spdlog::debug( "IotHubClientWrapper" );
 }
 
-<<<<<<< HEAD
 IotHubClientWrapper::IotHubClientWrapperImpl::IotHubClientWrapperImpl( const std::string& connectionString,
+                                                                       const std::string& statusFile,
                                                                        const ProxySettings& proxy )
     : Proxy( proxy )
-=======
-IotHubClientWrapper::IotHubClientWrapperImpl::IotHubClientWrapperImpl( const std::string& connectionString, const std::string& statusFile)
->>>>>>> fork/pr/20231214-add-status-file
 {
     if ( connectionString.empty() )
     {
         throw std::invalid_argument( "Connection String" );
     }
 
-<<<<<<< HEAD
-    auto protocol      = Proxy.Enabled() ? MQTT_WebSocket_Protocol : MQTT_Protocol;
-    IotHubClientHandle = IoTHubDeviceClient_CreateFromConnectionString( connectionString.c_str(), protocol );
-=======
     statusFileName = statusFile;
 
-    IotHubClientHandle = IoTHubDeviceClient_CreateFromConnectionString( connectionString.c_str(), MQTT_Protocol );
->>>>>>> fork/pr/20231214-add-status-file
+    auto protocol      = Proxy.Enabled() ? MQTT_WebSocket_Protocol : MQTT_Protocol;
+    IotHubClientHandle = IoTHubDeviceClient_CreateFromConnectionString( connectionString.c_str(), protocol );
     if ( !IotHubClientHandle )
     {
         throw std::runtime_error( "Create client from connection string failed." );
@@ -632,26 +613,17 @@ void IotHubClientWrapper::IotHubClientWrapperImpl::sReportedStateCallback( int s
     spdlog::info( "Send reported state response {}", statusCode );
 }
 
-<<<<<<< HEAD
 IotHubClientWrapper::IotHubClientWrapper( const std::string& iotHubUri,
                                           const std::string& deviceId,
+                                          const std::string& statusFile,
                                           const ProxySettings& proxy )
-    : _impl( std::make_shared<IotHubClientWrapperImpl>( iotHubUri, deviceId, proxy ) )
-=======
-IotHubClientWrapper::IotHubClientWrapper( const std::string& iotHubUri, const std::string& deviceId, const std::string& statusFile )
-    : _impl( std::make_shared<IotHubClientWrapperImpl>( iotHubUri, deviceId, statusFile) )
->>>>>>> fork/pr/20231214-add-status-file
+    : _impl( std::make_shared<IotHubClientWrapperImpl>( iotHubUri, deviceId, statusFile, proxy ) )
 {
     spdlog::debug( "Created IotHub client." );
 }
 
-<<<<<<< HEAD
-IotHubClientWrapper::IotHubClientWrapper( const std::string& connectionString, const ProxySettings& proxy )
-    : _impl( std::make_shared<IotHubClientWrapperImpl>( connectionString, proxy ) )
-=======
-IotHubClientWrapper::IotHubClientWrapper( const std::string& connectionString, const std::string& statusFile )
-    : _impl( std::make_shared<IotHubClientWrapperImpl>( connectionString, statusFile ) )
->>>>>>> fork/pr/20231214-add-status-file
+IotHubClientWrapper::IotHubClientWrapper( const std::string& connectionString, const std::string& statusFile, const ProxySettings& proxy )
+    : _impl( std::make_shared<IotHubClientWrapperImpl>( connectionString, statusFile, proxy ) )
 {
     spdlog::debug( "Created IotHub client." );
 }

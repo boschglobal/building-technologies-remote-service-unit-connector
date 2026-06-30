@@ -122,18 +122,10 @@ std::shared_ptr<IIotHubClient> IotHubFactory::IotHubClient( const std::string& i
                                                             const std::string& deviceId,
                                                             const std::string& statusFile ) const
 {
-<<<<<<< HEAD
-    return std::make_shared<IotHubClientWrapper>( iotHubUri, deviceId, _impl->Proxy );
-=======
-    return std::make_shared<IotHubClientWrapper>( iotHubUri, deviceId, statusFile );
->>>>>>> fork/pr/20231214-add-status-file
+    return std::make_shared<IotHubClientWrapper>( iotHubUri, deviceId, statusFile, _impl->Proxy );
 }
 
 std::shared_ptr<IIotHubClient> IotHubFactory::IotHubClient( const std::string& connectionString, const std::string& statusFile ) const
 {
-<<<<<<< HEAD
-    return std::make_shared<IotHubClientWrapper>( connectionString, _impl->Proxy );
-=======
-    return std::make_shared<IotHubClientWrapper>( connectionString, statusFile );
->>>>>>> fork/pr/20231214-add-status-file
+    return std::make_shared<IotHubClientWrapper>( connectionString, statusFile, _impl->Proxy );
 }

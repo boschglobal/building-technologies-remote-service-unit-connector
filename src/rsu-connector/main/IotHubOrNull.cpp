@@ -21,12 +21,9 @@ struct IotHubOrNull::IotHubOrNullImpl
     std::string SharedAccessSignature;
     std::string CertificateFileName;
     std::string DeviceKeyFileName;
-<<<<<<< HEAD
     ProxySettings Proxy;
-=======
     std::string StatusFileName;
 
->>>>>>> fork/pr/20231214-add-status-file
     std::shared_ptr<IotHubFactory> Factory{ nullptr };
     std::shared_ptr<IIotHubClient> Hub{ nullptr };
     bool MethodHandlerSet{ false };

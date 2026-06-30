@@ -21,7 +21,12 @@ struct IotHubOrNull::IotHubOrNullImpl
     std::string SharedAccessSignature;
     std::string CertificateFileName;
     std::string DeviceKeyFileName;
+<<<<<<< HEAD
     ProxySettings Proxy;
+=======
+    std::string StatusFileName;
+
+>>>>>>> fork/pr/20231214-add-status-file
     std::shared_ptr<IotHubFactory> Factory{ nullptr };
     std::shared_ptr<IIotHubClient> Hub{ nullptr };
     bool MethodHandlerSet{ false };
@@ -217,6 +222,15 @@ IotHubOrNull::IotHubOrNull( std::shared_ptr<Configuration> config ) : _impl( std
         throw std::runtime_error( "No authentification method specified." );
     }
 
+    try
+    {
+        _impl->StatusFileName = config->GetStringValue( "HUB_StatusFile" );
+    }
+    catch ( const std::exception& e )
+    {
+        spdlog::warn( "Exception while reading HubStatusFile: {}", e.what() );
+    }
+
     _impl->Factory = std::make_shared<IotHubFactory>( _impl->RegistrationId,
                                                       _impl->SharedAccessSignature,
                                                       _impl->CertificateFileName,
@@ -256,7 +270,7 @@ bool IotHubOrNull::Connect()
             }
             spdlog::info( "Connecting to Iot hub." );
 
-            _impl->Hub = _impl->Factory->IotHubClient( iotHubUri, deviceId );
+            _impl->Hub = _impl->Factory->IotHubClient( iotHubUri, deviceId, _impl->StatusFileName );
             if ( !_impl->Hub.get() )
             {
                 spdlog::error( "IotHub client is null" );

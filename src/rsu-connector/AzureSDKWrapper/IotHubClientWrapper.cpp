@@ -24,6 +24,7 @@
 
 #include "IIotHubClient.h"
 #include "IotHubClientWrapper.h"
+#include "StringUtils.h"
 
 using namespace std;
 
@@ -145,13 +146,18 @@ IotHubClientWrapper::IotHubClientWrapperImpl::IotHubClientWrapperImpl( const std
                                                                        const ProxySettings& proxy )
     : Proxy( proxy )
 {
-    if ( iotHubUri.empty() || deviceId.empty() )
+    const auto trimmedIotHubUri = TrimWhitespace( iotHubUri );
+    const auto trimmedDeviceId  = TrimWhitespace( deviceId );
+
+    if ( trimmedIotHubUri.empty() || trimmedDeviceId.empty() )
     {
         throw std::invalid_argument( "Connection String" );
     }
 
     auto protocol      = Proxy.Enabled() ? MQTT_WebSocket_Protocol : MQTT_Protocol;
-    IotHubClientHandle = IoTHubDeviceClient_CreateFromDeviceAuth( iotHubUri.c_str(), deviceId.c_str(), protocol );
+    IotHubClientHandle = IoTHubDeviceClient_CreateFromDeviceAuth( trimmedIotHubUri.c_str(),
+                                                                  trimmedDeviceId.c_str(),
+                                                                  protocol );
     if ( !IotHubClientHandle )
     {
         throw std::runtime_error( "Create client from connection string failed." );

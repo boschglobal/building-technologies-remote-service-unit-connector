@@ -13,6 +13,7 @@
 #include <mutex>
 
 #include "ProvisioningClientWrapper.h"
+#include "StringUtils.h"
 
 #include <azure_prov_client/prov_device_client.h>
 #include <azure_prov_client/prov_security_factory.h>
@@ -52,11 +53,11 @@ struct ProvisioningClientWrapper::ProvisioningClientWrapperImpl
         ProvisioningClientWrapperImpl* ctx = static_cast<ProvisioningClientWrapperImpl*>( userContextCallback );
         if ( deviceId )
         {
-            ctx->DeviceId = string( deviceId );
+            ctx->DeviceId = TrimWhitespace( deviceId );
         }
         if ( iotHubUri )
         {
-            ctx->IotHubUri = string( iotHubUri );
+            ctx->IotHubUri = TrimWhitespace( iotHubUri );
         }
 
         unique_lock<mutex> lock( ctx->Mutex );

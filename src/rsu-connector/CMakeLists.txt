@@ -89,6 +89,7 @@ set(SRC
 set(INC 
     AzureSDKWrapper/IotHubClientWrapper.h 
     AzureSDKWrapper/ProvisioningClientWrapper.h
+    AzureSDKWrapper/StringUtils.h
     AzureSDKWrapper/IIotHubClient.h 
     AzureSDKWrapper/IProvisioningClient.h
     AzureSDKWrapper/IotHubFactory.h
@@ -147,6 +148,7 @@ set(SRC
 set(INC 
     AzureSDKWrapper/IotHubClientWrapper.h 
     AzureSDKWrapper/ProvisioningClientWrapper.h
+    AzureSDKWrapper/StringUtils.h
     AzureSDKWrapper/IIotHubClient.h 
     AzureSDKWrapper/IProvisioningClient.h
     AzureSDKWrapper/IotHubFactory.h
@@ -193,6 +195,7 @@ endif()
 set(TESTSRC
     unittest/ConfigurationTest.cpp
     unittest/IotHubOrNullTest.cpp
+    unittest/StringUtilsTest.cpp
     unittest/MessageCollectorTest.cpp
     unittest/ReliableMessageDispatcherTest.cpp
     unittest/JobSchedulerTest.cpp
@@ -229,4 +232,3 @@ target_link_libraries(${TARGET_NAME} PRIVATE oatpp::oatpp ${ubox} ${uci} ${spdlo
 target_compile_options(${TARGET_NAME} PRIVATE ${TEST_COMPILE_OPTIONS})
 set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 17)
 target_link_options(${TARGET_NAME} BEFORE PRIVATE ${TEST_LINK_OPTIONS})
-

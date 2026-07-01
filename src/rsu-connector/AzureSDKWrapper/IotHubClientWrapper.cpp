@@ -8,6 +8,7 @@
 #include <vector>
 #include <map>
 #include <functional>
+#include <fstream>
 #include <iostream>
 #include <iomanip>
 #include <mutex>
@@ -93,7 +94,49 @@ struct IotHubClientWrapper::IotHubClientWrapperImpl
             spdlog::error( "Status callback with NULL user context." );
             return;
         }
-        spdlog::info( "Received status {} reason {}", result, reason );
+
+        fstream status;
+        status.open( "/tmp/rsu-connector/hub-status.json", ios::out );
+        if ( !status )
+        {
+            spdlog::warn( "Status file cannot be created" );
+        }
+        else
+        {
+            switch ( reason )
+            {
+                case IOTHUB_CLIENT_CONNECTION_EXPIRED_SAS_TOKEN:
+                    status << "{ \"status\": \"EXPIRED_SAS_TOKEN\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_DEVICE_DISABLED:
+                    status << "{ \"status\": \"DEVICE_DISABLED\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_BAD_CREDENTIAL:
+                    status << "{ \"status\": \"BAD_CREDENTIAL\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_RETRY_EXPIRED:
+                    status << "{ \"status\": \"RETRY_EXPIRED\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_NO_NETWORK:
+                    status << "{ \"status\": \"NO_NETWORK\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_COMMUNICATION_ERROR:
+                    status << "{ \"status\": \"COMMUNICATION_ERROR\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_OK:
+                    status << "{ \"status\": \"OK\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_NO_PING_RESPONSE:
+                    status << "{ \"status\": \"NO_PING_RESPONSE\" }\n";
+                    break;
+                default:
+                    status << "{ \"status\": \"UNKNOWN\" }\n";
+                    break;
+            }
+            status.close();
+        }
+
+        spdlog::info( "Received status {} reason {}", static_cast<int>( result ), static_cast<int>( reason ) );
     }
 
     static IOTHUBMESSAGE_DISPOSITION_RESULT sMessageCallback( IOTHUB_MESSAGE_HANDLE message,
@@ -228,7 +271,7 @@ void IotHubClientWrapper::IotHubClientWrapperImpl::SendMessage( const MessageDat
                                                       static_cast<void*>( message ) );
     if ( success != IOTHUB_CLIENT_OK )
     {
-        spdlog::error( "Sending byte array message failed {}", success );
+        spdlog::error( "Sending byte array message failed {}", static_cast<int>( success ) );
         throw std::runtime_error( "Message send failed." );
     }
 }
@@ -262,7 +305,7 @@ void IotHubClientWrapper::IotHubClientWrapperImpl::SendMessage( const std::strin
                                                       static_cast<void*>( message ) );
     if ( success != IOTHUB_CLIENT_OK )
     {
-        spdlog::error( "Sending byte array message failed {}", success );
+        spdlog::error( "Sending byte array message failed {}", static_cast<int>( success ) );
         throw std::runtime_error( "Message send failed." );
     }
 }
@@ -272,7 +315,7 @@ bool IotHubClientWrapper::IotHubClientWrapperImpl::TriggerGetTwin()
     auto success = IoTHubDeviceClient_GetTwinAsync( IotHubClientHandle, sDeviceTwinCallback, this );
     if ( IOTHUB_CLIENT_OK != success )
     {
-        spdlog::error( "Device twin get failed {}", success );
+        spdlog::error( "Device twin get failed {}", static_cast<int>( success ) );
         return false;
     }
     return true;
@@ -288,7 +331,7 @@ void IotHubClientWrapper::IotHubClientWrapperImpl::SendReportedState( const std:
                                                   this );
     if ( IOTHUB_CLIENT_OK != success )
     {
-        spdlog::error( "Send reported device state failed {}", success );
+        spdlog::error( "Send reported device state failed {}", static_cast<int>( success ) );
         throw std::runtime_error( "Could not send reported device state." );
     }
 }
@@ -301,7 +344,7 @@ void IotHubClientWrapper::IotHubClientWrapperImpl::SetDeviceTwinHandler(
     auto success = IoTHubDeviceClient_SetDeviceTwinCallback( IotHubClientHandle, sDeviceTwinCallback, this );
     if ( IOTHUB_CLIENT_OK != success )
     {
-        spdlog::error( "Set device twin callback failed {}", success );
+        spdlog::error( "Set device twin callback failed {}", static_cast<int>( success ) );
         throw std::runtime_error( "Set device twin callback." );
     }
 }
@@ -313,7 +356,7 @@ void IotHubClientWrapper::IotHubClientWrapperImpl::SetupOptions()
     auto retValSetModel = IoTHubDeviceClient_SetOption( IotHubClientHandle, OPTION_MODEL_ID, modelId );
     if ( IOTHUB_CLIENT_OK != retValSetModel )
     {
-        spdlog::warn( "Set model id failed {}", retValSetModel );
+        spdlog::warn( "Set model id failed {}", static_cast<int>( retValSetModel ) );
         // this error is not fatal
     }
 
@@ -357,7 +400,7 @@ void IotHubClientWrapper::IotHubClientWrapperImpl::SetupOptions()
     auto retValSsl      = IoTHubDeviceClient_SetOption( IotHubClientHandle, OPTION_OPENSSL_CIPHER_SUITE, ciphers );
     if ( IOTHUB_CLIENT_OK != retValSsl )
     {
-        spdlog::warn( "Set SSL ciphers failed {}", retValSsl );
+        spdlog::warn( "Set SSL ciphers failed {}", static_cast<int>( retValSsl ) );
         // this error is not fatal.
     }
 }
@@ -369,7 +412,7 @@ void IotHubClientWrapper::IotHubClientWrapperImpl::SetupCallbacks()
     {
         IoTHubDeviceClient_Destroy( IotHubClientHandle );
         IotHubClientHandle = NULL;
-        spdlog::error( "Set connection status callback failed {}", success );
+        spdlog::error( "Set connection status callback failed {}", static_cast<int>( success ) );
         throw std::runtime_error( "Set connection status callback." );
     }
     success = IoTHubDeviceClient_SetMessageCallback( IotHubClientHandle, &sMessageCallback, this );
@@ -377,7 +420,7 @@ void IotHubClientWrapper::IotHubClientWrapperImpl::SetupCallbacks()
     {
         IoTHubDeviceClient_Destroy( IotHubClientHandle );
         IotHubClientHandle = NULL;
-        spdlog::error( "Set message callback failed {}", success );
+        spdlog::error( "Set message callback failed {}", static_cast<int>( success ) );
         throw std::runtime_error( "Set message callback." );
     }
     success = IoTHubDeviceClient_SetDeviceMethodCallback( IotHubClientHandle, &sDeviceMethodCallback, this );
@@ -385,7 +428,7 @@ void IotHubClientWrapper::IotHubClientWrapperImpl::SetupCallbacks()
     {
         IoTHubDeviceClient_Destroy( IotHubClientHandle );
         IotHubClientHandle = NULL;
-        spdlog::error( "Set method callback failed {}", success );
+        spdlog::error( "Set method callback failed {}", static_cast<int>( success ) );
         throw std::runtime_error( "Set method callback." );
     }
 }
@@ -416,7 +459,7 @@ IOTHUBMESSAGE_DISPOSITION_RESULT IotHubClientWrapper::IotHubClientWrapperImpl::s
     spdlog::info( "Received message id {} correlation id {} with message type {} content type {} encoding ",
                   TextOrNull( messageId ),
                   TextOrNull( correlationId ),
-                  messageType,
+                  static_cast<int>( messageType ),
                   TextOrNull( contentType ),
                   TextOrNull( encoding ) );
 
@@ -476,7 +519,7 @@ void IotHubClientWrapper::IotHubClientWrapperImpl::sEventConfirmationCallback( I
                             [userContextCallback]( auto& item ) { return item->Reference() == userContextCallback; } );
     if ( it != SendMessageTrackers.end() )
     {
-        spdlog::info( "IotHubClient: reporting result {} to tracker", result );
+        spdlog::info( "IotHubClient: reporting result {} to tracker", static_cast<int>( result ) );
         auto item = *it;
         switch ( result )
         {
@@ -506,11 +549,11 @@ void IotHubClientWrapper::IotHubClientWrapperImpl::sDeviceTwinCallback( DEVICE_T
 {
     if ( !payLoad )
     {
-        spdlog::error( "Device twin callback state {} with no payload", updateState );
+        spdlog::error( "Device twin callback state {} with no payload", static_cast<int>( updateState ) );
         return;
     }
     std::string deviceTwinData( payLoad, payLoad + size );
-    spdlog::info( "Device twin callback state {} hubUri {}", updateState, deviceTwinData );
+    spdlog::info( "Device twin callback state {} hubUri {}", static_cast<int>( updateState ), deviceTwinData );
     if ( !userContextCallback )
     {
         spdlog::error( "Device twin callback with NULL user context." );

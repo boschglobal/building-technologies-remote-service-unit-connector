@@ -8,6 +8,7 @@
 #include <vector>
 #include <map>
 #include <functional>
+#include <fstream>
 #include <iostream>
 #include <iomanip>
 #include <mutex>
@@ -93,6 +94,48 @@ struct IotHubClientWrapper::IotHubClientWrapperImpl
             spdlog::error( "Status callback with NULL user context." );
             return;
         }
+
+        fstream status;
+        status.open( "/tmp/rsu-connector/hub-status.json", ios::out );
+        if ( !status )
+        {
+            spdlog::warn( "Status file cannot be created" );
+        }
+        else
+        {
+            switch ( reason )
+            {
+                case IOTHUB_CLIENT_CONNECTION_EXPIRED_SAS_TOKEN:
+                    status << "{ \"status\": \"EXPIRED_SAS_TOKEN\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_DEVICE_DISABLED:
+                    status << "{ \"status\": \"DEVICE_DISABLED\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_BAD_CREDENTIAL:
+                    status << "{ \"status\": \"BAD_CREDENTIAL\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_RETRY_EXPIRED:
+                    status << "{ \"status\": \"RETRY_EXPIRED\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_NO_NETWORK:
+                    status << "{ \"status\": \"NO_NETWORK\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_COMMUNICATION_ERROR:
+                    status << "{ \"status\": \"COMMUNICATION_ERROR\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_OK:
+                    status << "{ \"status\": \"OK\" }\n";
+                    break;
+                case IOTHUB_CLIENT_CONNECTION_NO_PING_RESPONSE:
+                    status << "{ \"status\": \"NO_PING_RESPONSE\" }\n";
+                    break;
+                default:
+                    status << "{ \"status\": \"UNKNOWN\" }\n";
+                    break;
+            }
+            status.close();
+        }
+
         spdlog::info( "Received status {} reason {}", static_cast<int>( result ), static_cast<int>( reason ) );
     }
 

@@ -32,12 +32,19 @@ public:
     /// @param iotHubUri witch receive from @ref ProvisioningClientWrapper.
     /// @param deviceId witch receive from @ref ProvisioningClientWrapper.
     /// @param proxy Optional HTTP proxy. When Enabled(), the client connects via MQTT-over-WebSocket through the proxy.
-    IotHubClientWrapper( const std::string& iotHubUri, const std::string& deviceId, const ProxySettings& proxy = {} );
+    /// @param statusFilePath Optional file the connection status is written to on every status change. Empty disables the file.
+    IotHubClientWrapper( const std::string& iotHubUri,
+                         const std::string& deviceId,
+                         const ProxySettings& proxy = {},
+                         const std::string& statusFilePath = {} );
 
     /// @brief Construct a new Iot Hub Client by connectionString.
     /// @param connectionString of IoT Hub
     /// @param proxy Optional HTTP proxy. When Enabled(), the client connects via MQTT-over-WebSocket through the proxy.
-    IotHubClientWrapper( const std::string& connectionString, const ProxySettings& proxy = {} );
+    /// @param statusFilePath Optional file the connection status is written to on every status change. Empty disables the file.
+    IotHubClientWrapper( const std::string& connectionString,
+                         const ProxySettings& proxy = {},
+                         const std::string& statusFilePath = {} );
 
     /// @brief Destroy the Iot Hub Client Wrapper object.
     virtual ~IotHubClientWrapper() = default;

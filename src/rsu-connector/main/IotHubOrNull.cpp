@@ -5,6 +5,7 @@
 //--- END HEADER ---
 
 #include "IotHubOrNull.h"
+#include <AzureSDKWrapper/ConnectionStatusFile.h>
 #include <AzureSDKWrapper/ProxySettings.h>
 #include <algorithm>
 #include <cctype>
@@ -22,6 +23,7 @@ struct IotHubOrNull::IotHubOrNullImpl
     std::string CertificateFileName;
     std::string DeviceKeyFileName;
     ProxySettings Proxy;
+    std::string StatusFilePath;
     std::shared_ptr<IotHubFactory> Factory{ nullptr };
     std::shared_ptr<IIotHubClient> Hub{ nullptr };
     bool MethodHandlerSet{ false };
@@ -167,6 +169,18 @@ IotHubOrNull::IotHubOrNull( std::shared_ptr<Configuration> config ) : _impl( std
         // optional
     }
 
+    try
+    {
+        _impl->StatusFilePath = config->GetStringValue( "connection_status_file" );
+    }
+    catch ( const std::exception& e )
+    {
+        spdlog::info( "Exception while reading connection_status_file setting: {}", e.what() );
+    }
+    // Overwrite a status file left over from a previous run: no callback fires until the hub
+    // client exists, so a stale status would otherwise be reported until then.
+    WriteConnectionStatusFile( _impl->StatusFilePath, "UNKNOWN" );
+
     if ( _impl->Proxy.Enabled() )
     {
         const char* authName = ( _impl->Proxy.AuthMethod == ProxyAuthMethod::Negotiate ) ? "negotiate" : "basic";
@@ -221,7 +235,8 @@ IotHubOrNull::IotHubOrNull( std::shared_ptr<Configuration> config ) : _impl( std
                                                       _impl->SharedAccessSignature,
                                                       _impl->CertificateFileName,
                                                       _impl->DeviceKeyFileName,
-                                                      _impl->Proxy );
+                                                      _impl->Proxy,
+                                                      _impl->StatusFilePath );
     spdlog::debug( "IotHubOrNull" );
 }
 

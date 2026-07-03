@@ -13,5 +13,6 @@
     "jobschedule_tickinternal_ms": 100,
     "message_retry_interval_s": 10,
     "forward_to_effilink": true,
-    "openvpn_log": "/tmp/rsu-connector/openvpn.log"
+    "openvpn_log": "/tmp/rsu-connector/openvpn.log",
+    "connection_status_file": "/tmp/rsu-connector/hub-status.json"
 }

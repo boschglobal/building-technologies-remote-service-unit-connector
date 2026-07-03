@@ -86,8 +86,9 @@ set(SRC
     main/telemetry-main.cpp 
 )
 
-set(INC 
-    AzureSDKWrapper/IotHubClientWrapper.h 
+set(INC
+    AzureSDKWrapper/ConnectionStatusFile.h
+    AzureSDKWrapper/IotHubClientWrapper.h
     AzureSDKWrapper/ProvisioningClientWrapper.h
     AzureSDKWrapper/IIotHubClient.h 
     AzureSDKWrapper/IProvisioningClient.h
@@ -103,7 +104,7 @@ set(INC
 )
 
 add_executable(${TARGET_NAME} ${SRC} ${INC} ${BASE64SRC})
-target_link_libraries(${TARGET_NAME} PRIVATE ${azurelibs} uhttp ${spdlog} ${fmt} ssl crypto oatpp::oatpp cppbase64 )
+target_link_libraries(${TARGET_NAME} PRIVATE ${azurelibs} uhttp ${spdlog} ${fmt} stdc++fs ssl crypto oatpp::oatpp cppbase64 )
 target_include_directories(${TARGET_NAME} PRIVATE . ${oatpp_INCLUDE_DIRS} ${iothub_client_include_dir}/azureiot)
 target_compile_options(${TARGET_NAME} PRIVATE ${EXECUTABLE_COMPILE_OPTIONS})
 set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 17)
@@ -144,8 +145,9 @@ set(SRC
     UBus/UBus.cpp
     )
 
-set(INC 
-    AzureSDKWrapper/IotHubClientWrapper.h 
+set(INC
+    AzureSDKWrapper/ConnectionStatusFile.h
+    AzureSDKWrapper/IotHubClientWrapper.h
     AzureSDKWrapper/ProvisioningClientWrapper.h
     AzureSDKWrapper/IIotHubClient.h 
     AzureSDKWrapper/IProvisioningClient.h
@@ -192,6 +194,7 @@ endif()
 
 set(TESTSRC
     unittest/ConfigurationTest.cpp
+    unittest/ConnectionStatusFileTest.cpp
     unittest/IotHubOrNullTest.cpp
     unittest/MessageCollectorTest.cpp
     unittest/ReliableMessageDispatcherTest.cpp

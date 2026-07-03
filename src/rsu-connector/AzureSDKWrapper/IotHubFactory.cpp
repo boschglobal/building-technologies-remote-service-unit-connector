@@ -23,6 +23,7 @@ struct IotHubFactory::IotHubFactoryImpl
 {
     CustomHsm Hsm;
     ProxySettings Proxy;
+    std::string StatusFilePath;
 };
 
 // logger instance that is set to replace the standard logger for the Azure Iot C SDk so the log output looks the same.
@@ -52,13 +53,15 @@ IotHubFactory::IotHubFactory( const std::string& registrationId,
                               const std::string& sharedAccessSignature,
                               const std::string& certFileName,
                               const std::string& keyFileName,
-                              const ProxySettings& proxy )
+                              const ProxySettings& proxy,
+                              const std::string& statusFilePath )
     : _impl{ std::make_shared<IotHubFactoryImpl>() }
 {
     xlogging_set_log_function( spdlog_logger );
     _impl->Hsm.setRegistrationId( registrationId );
     _impl->Hsm.setSas( sharedAccessSignature );
-    _impl->Proxy = proxy;
+    _impl->Proxy          = proxy;
+    _impl->StatusFilePath = statusFilePath;
 
     if ( !certFileName.empty() )
     {
@@ -121,10 +124,10 @@ std::shared_ptr<IProvisioningClient> IotHubFactory::ProvisioningClient( const st
 std::shared_ptr<IIotHubClient> IotHubFactory::IotHubClient( const std::string& iotHubUri,
                                                             const std::string& deviceId ) const
 {
-    return std::make_shared<IotHubClientWrapper>( iotHubUri, deviceId, _impl->Proxy );
+    return std::make_shared<IotHubClientWrapper>( iotHubUri, deviceId, _impl->Proxy, _impl->StatusFilePath );
 }
 
 std::shared_ptr<IIotHubClient> IotHubFactory::IotHubClient( const std::string& connectionString ) const
 {
-    return std::make_shared<IotHubClientWrapper>( connectionString, _impl->Proxy );
+    return std::make_shared<IotHubClientWrapper>( connectionString, _impl->Proxy, _impl->StatusFilePath );
 }

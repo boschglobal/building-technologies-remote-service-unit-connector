@@ -23,11 +23,13 @@ public:
     /// @param certificateFileName Filename of the x509 device certificate in PEM format (must be full chain, e.g. include all CA certificates necessary for validation).
     /// @param keyFileName Filename of the device key in PEM format. Must not have a passphrase set.
     /// @param proxy Optional HTTP proxy. When Enabled(), DPS uses HTTP CONNECT and IoT Hub switches to MQTT-over-WebSocket.
+    /// @param statusFilePath Optional file the IoT Hub connection status is written to on every status change. Empty disables the file.
     IotHubFactory( const std::string& registrationId,
                    const std::string& sharedAccessSignature,
                    const std::string& certificateFileName,
                    const std::string& keyFileName,
-                   const ProxySettings& proxy = {} );
+                   const ProxySettings& proxy = {},
+                   const std::string& statusFilePath = {} );
     virtual ~IotHubFactory();
 
     /// @brief Construct a Device Provisioning Client with given Scope Id.

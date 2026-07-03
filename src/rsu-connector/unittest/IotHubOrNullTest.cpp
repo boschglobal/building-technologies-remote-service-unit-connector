@@ -14,8 +14,11 @@
 #include <AzureSDKWrapper/IProvisioningClient.h>
 #include <AzureSDKWrapper/ProxySettings.h>
 #include <cstdlib>
+#include <experimental/filesystem>
+#include <fstream>
 #include <map>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 
 struct EnvVarGuard
@@ -83,13 +86,15 @@ struct MockIotHubFactory
                        const std::string& sharedAccessSignature,
                        const std::string& certificateFileName,
                        const std::string& keyFileName,
-                       const ProxySettings& proxy = {} )
+                       const ProxySettings& proxy = {},
+                       const std::string& statusFilePath = {} )
     {
         DpsRegId               = registrationId;
         DpsSAS                 = sharedAccessSignature;
         DpsCertificateFileName = certificateFileName;
         DpsKeyFileName         = keyFileName;
         DpsProxy               = proxy;
+        DpsStatusFilePath      = statusFilePath;
     }
 
     virtual ~MockIotHubFactory() = default;
@@ -116,6 +121,7 @@ struct MockIotHubFactory
     static std::string DpsCertificateFileName;
     static std::string DpsKeyFileName;
     static ProxySettings DpsProxy;
+    static std::string DpsStatusFilePath;
     static bool ProvisioningClientRequested;
     static bool IotClientRequested;
     static std::string ProvClientScope;
@@ -130,6 +136,7 @@ std::string MockIotHubFactory::DpsSAS{ "" };
 std::string MockIotHubFactory::DpsCertificateFileName{ "" };
 std::string MockIotHubFactory::DpsKeyFileName{ "" };
 ProxySettings MockIotHubFactory::DpsProxy{};
+std::string MockIotHubFactory::DpsStatusFilePath{ "" };
 bool MockIotHubFactory::ProvisioningClientRequested{ false };
 bool MockIotHubFactory::IotClientRequested{ false };
 std::string MockIotHubFactory::ProvClientScope{ "" };
@@ -673,4 +680,39 @@ TEST_CASE( "iotnull - proxy with basic auth (default) leaves env vars unset" )
     CHECK( MockIotHubFactory::DpsProxy.AuthMethod == ProxyAuthMethod::Basic );
     CHECK( getenv( "KRB5_CLIENT_KTNAME" ) == nullptr );
     CHECK( getenv( "KRB5CCNAME" ) == nullptr );
+}
+
+TEST_CASE( "iotnull - connection status file path is forwarded to factory and initialized to UNKNOWN" )
+{
+    namespace fs = std::experimental::filesystem;
+    const std::string statusFile{ "iotnull_status_test/hub-status.json" };
+    auto config{ std::make_shared<MockConfiguration>() };
+    config->Strings["DPS_IDSCOPE"]               = "dummy";
+    config->Strings["DPS_RegistrationId"]        = "dummyRegId";
+    config->Strings["DPS_SharedAccessSignature"] = "dummySAS";
+    config->Strings["connection_status_file"]    = statusFile;
+    MockIotHubFactory::DpsStatusFilePath         = "";
+
+    IotHubOrNull iothub{ config };
+    CHECK( MockIotHubFactory::DpsStatusFilePath == statusFile );
+
+    std::ifstream file( statusFile );
+    std::stringstream content;
+    content << file.rdbuf();
+    CHECK( content.str() == "{ \"status\": \"UNKNOWN\" }\n" );
+
+    std::error_code ec;
+    fs::remove_all( fs::path( statusFile ).parent_path(), ec );
+}
+
+TEST_CASE( "iotnull - absent connection status file key leaves status file disabled" )
+{
+    auto config{ std::make_shared<MockConfiguration>() };
+    config->Strings["DPS_IDSCOPE"]               = "dummy";
+    config->Strings["DPS_RegistrationId"]        = "dummyRegId";
+    config->Strings["DPS_SharedAccessSignature"] = "dummySAS";
+    MockIotHubFactory::DpsStatusFilePath         = "stale";
+
+    IotHubOrNull iothub{ config };
+    CHECK( MockIotHubFactory::DpsStatusFilePath.empty() );
 }

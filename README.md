@@ -70,6 +70,22 @@ Required in addition to the config above. Missing any one of them causes the Neg
 | Clock sync within ~5 min of the KDC | Kerberos refuses skewed tickets. Run `ntpd` / `chronyd` on the device. |
 | Keytab file readable by the connector user | Typically `chown root:root`, `chmod 600 /etc/rsu-connector/rsu.keytab`. The principal in the keytab is the device's client identity, not the proxy's SPN. |
 
+## Connection status file
+
+When `connection_status_file` is set in the connector config, the connector writes the current IoT Hub connection status to that file on every status change, e.g.
+
+```json
+{ "status": "OK" }
+```
+
+Possible status values are `OK`, `EXPIRED_SAS_TOKEN`, `DEVICE_DISABLED`, `BAD_CREDENTIAL`, `RETRY_EXPIRED`, `NO_NETWORK`, `COMMUNICATION_ERROR`, `NO_PING_RESPONSE`, and `UNKNOWN`. The file's directory is created if it does not exist. The file is replaced atomically (write to `<path>.tmp`, then rename), so readers never see a partial file. On startup the connector initializes the file to `UNKNOWN`, so a stale status from a previous run is never reported. Leaving the key absent or empty disables the file.
+
+```json
+{
+    "connection_status_file": "/tmp/rsu-connector/hub-status.json"
+}
+```
+
 ## Contribute
 
 Please refer to the [CONTRIBUTING.md](./CONTRIBUTING.md) for a quick read-up about what to consider if you want to contribute.

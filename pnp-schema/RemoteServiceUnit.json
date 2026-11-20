@@ -420,55 +420,6 @@
                     ]
                 }
             }
-        },
-        {
-            "@type": "Command",
-            "name": "ConfigureVPNConnection",
-            "displayName": "Configure VPN Connection",
-            "description": "Add or update OpenVPN configuration on RSU",
-            "request": {
-                "name": "VPNConfiguration",
-                "displayName": "VPN Configuration",
-                "description": "Name and the OpenVPN configuration",
-                "schema": {
-                    "@type": "Object",
-                    "fields": [
-                        {
-                            "name": "Name",
-                            "displayName": "Unique VPN connection name",
-                            "description": "Unique name to start and stop the VPN connection",
-                            "schema": "string"
-                        },
-                        {
-                            "name": "VPNconfig",
-                            "displayName": "VPNconfig",
-                            "description": "VPNconfig as ovpn formatted string",
-                            "schema": "string"
-                        }
-                    ]
-                }
-            },
-            "response": {
-                "name": "VPNConfigurationStatus",
-                "displayName": "VPN Configuration Status",
-                "schema": {
-                    "@type": "Object",
-                    "fields": [
-                        {
-                            "name": "VPNConfigurationChanged",
-                            "displayName": "VPN configuration changed",
-                            "description": "True when the VPN configuration was added or updated",
-                            "schema": "boolean"
-                        },
-                        {
-                            "name": "Message",
-                            "displayName": "Message",
-                            "description": "Optional human friendly message e.g. about an error.",
-                            "schema": "string"
-                        }
-                    ]
-                }
-            }
         }
     ]
 }

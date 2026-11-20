@@ -12,8 +12,6 @@ struct MockVPNActor : public Command::IVPNActor
     ConnectionStatusVPN StartVPNReturn{ Established };
     bool StopVPNCalled{ false };
     ConnectionStatusVPN StopVPNReturn{ Disconnected };
-    bool ConfigureVPNCalled{ false };
-    bool ConfigureVPNReturn{ true };
     bool GetPortForwardingsCalled{ false };
     bool GetPortForwardingsReturn{ true };
     bool GetVPNConfigurationsCalled{ false };
@@ -21,8 +19,6 @@ struct MockVPNActor : public Command::IVPNActor
     std::string StartVPNName;
     std::string StartVPNAddress{ "1.2.3.7" };
     std::string StopVPNName;
-    std::string ConfigureVPNName;
-    std::string ConfigureVPNConfig;
     std::vector<VPNConfiguration> GetVPNResponse;
 
     ConnectionStatusVPN StartVPN( const std::string& name, std::string& ipAddress )
@@ -38,14 +34,6 @@ struct MockVPNActor : public Command::IVPNActor
         StopVPNCalled = true;
         StopVPNName   = name;
         return StopVPNReturn;
-    }
-
-    bool ConfigureVPN( const std::string& name, const std::string& config )
-    {
-        ConfigureVPNCalled = true;
-        ConfigureVPNName   = name;
-        ConfigureVPNConfig = config;
-        return ConfigureVPNReturn;
     }
 
     bool GetVPNConfigurations( std::vector<VPNConfiguration>& config )

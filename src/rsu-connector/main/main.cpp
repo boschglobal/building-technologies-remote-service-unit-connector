@@ -35,7 +35,6 @@
 #include <Commands/GetPortForwardings.h>
 #include <Commands/StartVPNConnection.h>
 #include <Commands/StopVPNConnection.h>
-#include <Commands/ConfigureVPNConnection.h>
 #include <Commands/GetVPNConfigurations.h>
 #include <Commands/RestartConnector.h>
 #include "IotHubOrNull.h"
@@ -237,13 +236,6 @@ int main( int argc, char** argv )
                 auto retVal              = cmdStopVPNConnection->Run( argument, response );
                 scheduleDeviceTwinUpdate = true;
                 return retVal;
-            } );
-
-    auto cmdConfigureVPNConnection = std::make_shared<Command::ConfigureVPNConnection>( ubus );
-    methodRouter->RegisterMethodHandler(
-            "ConfigureVPNConnection",
-            [cmdConfigureVPNConnection]( const std::string& argument, std::string& response ) -> int {
-                return cmdConfigureVPNConnection->Run( argument, response );
             } );
 
     auto cmdRestartConnector = std::make_shared<Command::RestartConnector>( sched );

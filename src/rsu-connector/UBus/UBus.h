@@ -36,7 +36,6 @@ public:
     bool ReloadFirewall();
     ConnectionStatusVPN StartVPN(const std::string& name, std::string& ipAddress);
     ConnectionStatusVPN StopVPN(const std::string& name);
-    bool ConfigureVPN(const std::string& name, const std::string& config);
     bool GetNetworkDetails( std::vector<Command::INetworkDetailSource::NetworkDetail>& details);
     bool GetVPNConfigurations( std::vector<Command::IVPNActor::VPNConfiguration>& config);
     bool GetPortForwardings( std::vector<Command::IPortForwardingActor::PortForwardingConfiguration>& config);

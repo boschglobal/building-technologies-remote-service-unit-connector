@@ -52,13 +52,6 @@ struct IVPNActor
     /// @return Connection Status as described above.
     virtual ConnectionStatusVPN StopVPN( const std::string& name ) = 0;
 
-    /// @brief Provide the configuration of a VPN connection
-    /// If the name is reused, the configuration shall overwrite the old configuration.
-    /// @param name Name of the connnection configuration.
-    /// @param config String containing ovpn configuration file contents.
-    /// @return true: success, false: error
-    virtual bool ConfigureVPN( const std::string& name, const std::string& config ) = 0;
-
     /// @brief Query the currently known configurations and their status.
     /// @param config Array of VPN configurations and whether they are active or not.
     /// @return true: success, false: error

@@ -133,7 +133,6 @@ set(SRC
     Commands/StartVPNConnection.cpp
     Commands/StopVPNConnection.cpp
     Commands/GetVPNConfigurations.cpp
-    Commands/ConfigureVPNConnection.cpp
     Commands/RestartConnector.cpp
     HttpHandler/HttpHandlerFactory.cpp
     HttpHandler/HttpClient.cpp
@@ -166,7 +165,6 @@ set(INC
     Commands/StartVPNConnection.h
     Commands/StopVPNConnection.h
     Commands/GetVPNConfigurations.h
-    Commands/ConfigureVPNConnection.h
     Commands/RestartConnector.h
     JobScheduler/JobScheduler.h
     JobScheduler/IJobScheduler.h
@@ -205,7 +203,6 @@ set(TESTSRC
     unittest/CommandGetPortForwardingsTest.cpp
     unittest/CommandStartVPNTest.cpp
     unittest/CommandStopVPNTest.cpp
-    unittest/CommandConfigureVPNConnectionTest.cpp
     unittest/CommandGetVPNConfigurationsTest.cpp
     unittest/CommandGetNetworkDetailsTest.cpp
     unittest/CommandRestartConnectorTest.cpp

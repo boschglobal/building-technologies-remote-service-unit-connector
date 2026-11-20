@@ -47,7 +47,6 @@ struct Ubus::UbusImpl
     bool ReloadFirewall();
     ConnectionStatusVPN StartVPN( const std::string& name, std::string& ipAddress );
     ConnectionStatusVPN StopVPN( const std::string& name );
-    bool ConfigureVPN( const std::string& name, const std::string& config );
     bool GetNetworkDetails( std::vector<NetworkDetail>& details );
     bool GetVPNConfigurations( std::vector<VPNConfiguration>& config );
     bool GetPortForwardings( std::vector<PortForwardingConfiguration>& config );
@@ -631,23 +630,6 @@ Command::IVPNActor::ConnectionStatusVPN Ubus::UbusImpl::StopVPN( const std::stri
     return gotStop ? Disconnected : Error;
 }
 
-bool Ubus::UbusImpl::ConfigureVPN( const std::string& name, const std::string& config )
-{
-    std::string filename{ "/etc/openvpn/" };
-    filename.append( name );
-    filename.append( ".conf" );
-
-    std::ofstream f( filename );
-    if ( !f.good() )
-    {
-        spdlog::error( "Could not write config file." );
-        return false;
-    }
-    f << config;
-    f.close();
-    return true;
-}
-
 bool Ubus::UbusImpl::GetVPNConfigurations( std::vector<VPNConfiguration>& config )
 {
     std::string directoryName{ "/etc/openvpn/" };
@@ -1021,11 +1003,6 @@ Command::IVPNActor::ConnectionStatusVPN Ubus::StartVPN( const std::string& name,
 Command::IVPNActor::ConnectionStatusVPN Ubus::StopVPN( const std::string& name )
 {
     return _impl->StopVPN( name );
-}
-
-bool Ubus::ConfigureVPN( const std::string& name, const std::string& config )
-{
-    return _impl->ConfigureVPN( name, config );
 }
 
 bool Ubus::GetVPNConfigurations( std::vector<VPNConfiguration>& config )
